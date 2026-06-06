@@ -149,7 +149,7 @@ fun ProfileScreen(
                     onClick = onOperateClick,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Operar")
+                    Text("Operaciones")
                 }
                 OutlinedButton(
                     onClick = onBackClick,

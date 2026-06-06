@@ -48,6 +48,7 @@ fun AppNavigation() {
         composable("login") {
             LoginScreen(
                 onLoginSuccess = { navController.navigate("marketplace") },
+                onAdminLoginSuccess = { navController.navigate("admin") },
                 onRegisterClick = { navController.navigate("register") }
             )
         }
@@ -58,6 +59,7 @@ fun AppNavigation() {
                 onPublishOfferClick = { navController.navigate("publishOffer") },
                 onOfferClick = { navController.navigate("startOperation") },
                 onNotificationsClick = { navController.navigate("notifications") },
+                onHistoryClick = { navController.navigate("history") },
                 onLogoutClick = {
                     navController.navigate("splashWelcome") {
                         popUpTo("marketplace") { inclusive = true }
