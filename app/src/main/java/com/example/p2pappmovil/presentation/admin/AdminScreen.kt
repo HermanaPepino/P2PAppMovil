@@ -1,5 +1,9 @@
 package com.example.p2pappmovil.presentation.admin
 
+// Credenciales de acceso para Admin:
+// Correo: admin@p2p.com
+// Contraseña: admin123
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,6 +25,10 @@ fun AdminScreen(
     onDisputeDetailClick: () -> Unit = {},
     onBackClick: () -> Unit = {}
 ) {
+    // Datos de validación (Simulados): 
+    // Usuario: admin@p2p.com
+    // Contraseña: admin123
+
     val scrollState = rememberScrollState()
 
     Column(

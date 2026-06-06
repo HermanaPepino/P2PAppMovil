@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun LoginScreen(
     onLoginSuccess: () -> Unit = {},
+    onAdminLoginSuccess: () -> Unit = {},
     onRegisterClick: () -> Unit = {}
 ) {
     var correo by remember { mutableStateOf("") }
@@ -85,7 +86,12 @@ fun LoginScreen(
                 }
 
                 if (!hasError) {
-                    onLoginSuccess()
+                    // Validación para acceso administrativo
+                    if (correo == "admin@p2p.com" && password == "admin123") {
+                        onAdminLoginSuccess()
+                    } else {
+                        onLoginSuccess()
+                    }
                 }
             },
             modifier = Modifier.fillMaxWidth()

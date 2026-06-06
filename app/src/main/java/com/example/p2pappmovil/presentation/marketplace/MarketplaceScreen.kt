@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Settings
@@ -49,6 +50,7 @@ fun MarketplaceScreen(
     onOfferClick: () -> Unit = {},
     onNotificationsClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
+    onHistoryClick: () -> Unit = {},
     onLogoutClick: () -> Unit = {}
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -67,6 +69,18 @@ fun MarketplaceScreen(
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 Spacer(modifier = Modifier.height(8.dp))
+                NavigationDrawerItem(
+                    label = { Text("Historial") },
+                    selected = false,
+                    onClick = {
+                        scope.launch {
+                            drawerState.close()
+                            onHistoryClick()
+                        }
+                    },
+                    icon = { Icon(Icons.Default.History, contentDescription = null) },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                )
                 NavigationDrawerItem(
                     label = { Text("Cerrar Sesión") },
                     selected = false,
