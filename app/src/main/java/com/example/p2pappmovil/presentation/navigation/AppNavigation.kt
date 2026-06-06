@@ -57,7 +57,12 @@ fun AppNavigation() {
                 onFilterClick = { navController.navigate("filters") },
                 onPublishOfferClick = { navController.navigate("publishOffer") },
                 onOfferClick = { navController.navigate("startOperation") },
-                onNotificationsClick = { navController.navigate("notifications") }
+                onNotificationsClick = { navController.navigate("notifications") },
+                onLogoutClick = {
+                    navController.navigate("splashWelcome") {
+                        popUpTo("marketplace") { inclusive = true }
+                    }
+                }
             )
         }
 
