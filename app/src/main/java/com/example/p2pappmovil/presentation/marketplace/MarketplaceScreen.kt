@@ -8,14 +8,17 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 
 data class Offer(
     val id: Int,
@@ -44,37 +47,78 @@ fun MarketplaceScreen(
     onFilterClick: () -> Unit = {},
     onPublishOfferClick: () -> Unit = {},
     onOfferClick: () -> Unit = {},
-    onNotificationsClick: () -> Unit = {}
+    onNotificationsClick: () -> Unit = {},
+    onSettingsClick: () -> Unit = {},
+    onLogoutClick: () -> Unit = {}
 ) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Marketplace", fontWeight = FontWeight.Bold) },
-                actions = {
-                    IconButton(onClick = onFilterClick) {
-                        Icon(Icons.Default.FilterList, contentDescription = "Filtros")
-                    }
-                    IconButton(onClick = onNotificationsClick) {
-                        Icon(Icons.Default.Notifications, contentDescription = "Notificaciones")
-                    }
-                }
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = onPublishOfferClick) {
-                Icon(Icons.Default.Add, contentDescription = "Publicar Oferta")
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    "Configuración",
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+                NavigationDrawerItem(
+                    label = { Text("Cerrar Sesión") },
+                    selected = false,
+                    onClick = {
+                        scope.launch {
+                            drawerState.close()
+                            onLogoutClick()
+                        }
+                    },
+                    icon = { Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null) },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                )
             }
         }
-    ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(mockOffers) { offer ->
-                OfferCard(offer = offer, onClick = onOfferClick)
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("Marketplace", fontWeight = FontWeight.Bold) },
+                    actions = {
+                        IconButton(onClick = onFilterClick) {
+                            Icon(Icons.Default.FilterList, contentDescription = "Filtros")
+                        }
+                        IconButton(onClick = onNotificationsClick) {
+                            Icon(Icons.Default.Notifications, contentDescription = "Notificaciones")
+                        }
+                        IconButton(onClick = {
+                            scope.launch {
+                                drawerState.open()
+                            }
+                        }) {
+                            Icon(Icons.Default.Settings, contentDescription = "Configuración")
+                        }
+                    }
+                )
+            },
+            floatingActionButton = {
+                FloatingActionButton(onClick = onPublishOfferClick) {
+                    Icon(Icons.Default.Add, contentDescription = "Publicar Oferta")
+                }
+            }
+        ) { paddingValues ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(mockOffers) { offer ->
+                    OfferCard(offer = offer, onClick = onOfferClick)
+                }
             }
         }
     }
