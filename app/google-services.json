@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "174774759036",
+    "project_id": "p2pappmovil",
+    "storage_bucket": "p2pappmovil.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:174774759036:android:c951d0a00b7514f5fc23f9",
+        "android_client_info": {
+          "package_name": "com.example.p2pappmovil"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDq06m6enWniYWSLpx3mNNM8o07iULkzvk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

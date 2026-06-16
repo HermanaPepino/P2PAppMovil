@@ -1,5 +1,6 @@
 package com.example.p2pappmovil.presentation.login
 
+import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -9,6 +10,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
+import com.google.firebase.firestore.FirebaseFirestore
 
 @Composable
 fun LoginScreen(
@@ -21,6 +26,10 @@ fun LoginScreen(
     
     var correoError by remember { mutableStateOf<String?>(null) }
     var passwordError by remember { mutableStateOf<String?>(null) }
+
+    var isLoading by remember { mutableStateOf(false) }
+    var loginMessage by remember { mutableStateOf("") }
+    var isError by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -52,6 +61,7 @@ fun LoginScreen(
             label = { Text("Correo electrónico") },
             modifier = Modifier.fillMaxWidth(),
             isError = correoError != null,
+            enabled = !isLoading,
             supportingText = { correoError?.let { Text(it) } }
         )
 
@@ -64,10 +74,24 @@ fun LoginScreen(
             modifier = Modifier.fillMaxWidth(),
             visualTransformation = PasswordVisualTransformation(),
             isError = passwordError != null,
+            enabled = !isLoading,
             supportingText = { passwordError?.let { Text(it) } }
         )
 
         Spacer(modifier = Modifier.height(32.dp))
+
+        if (loginMessage.isNotEmpty()) {
+            Text(
+                text = loginMessage,
+                color = if (isError) Color.Red else Color.Green,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
+
+        if (isLoading) {
+            CircularProgressIndicator(modifier = Modifier.padding(bottom = 16.dp))
+        }
 
         Button(
             onClick = {
@@ -86,22 +110,68 @@ fun LoginScreen(
                 }
 
                 if (!hasError) {
-                    // Validación para acceso administrativo
-                    if (correo == "admin@p2p.com" && password == "admin123") {
-                        onAdminLoginSuccess()
-                    } else {
-                        onLoginSuccess()
-                    }
+                    isLoading = true
+                    loginMessage = ""
+                    isError = false
+
+                    val auth = FirebaseAuth.getInstance()
+                    auth.signInWithEmailAndPassword(correo, password)
+                        .addOnCompleteListener { task ->
+                            if (task.isSuccessful) {
+                                val uid = auth.currentUser?.uid
+                                if (uid != null) {
+                                    Log.d("LoginScreen", "UID: $uid")
+                                    FirebaseFirestore.getInstance().collection("users").document(uid).get()
+                                        .addOnSuccessListener { document ->
+                                            isLoading = false
+                                            if (document.exists()) {
+                                                val rol = document.getString("rol") ?: "USER"
+                                                Log.d("LoginScreen", "ROL: $rol")
+                                                Log.d("LoginScreen", "Pantalla destino: ${if (rol == "ADMIN") "ADMIN" else "USER"}")
+                                                
+                                                if (rol == "ADMIN") {
+                                                    onAdminLoginSuccess()
+                                                } else {
+                                                    onLoginSuccess()
+                                                }
+                                            } else {
+                                                isError = true
+                                                loginMessage = "Documento de usuario no encontrado."
+                                                Log.e("LoginScreen", "Documento users no encontrado para UID: $uid")
+                                            }
+                                        }
+                                        .addOnFailureListener { e ->
+                                            isLoading = false
+                                            isError = true
+                                            loginMessage = "Error al consultar perfil."
+                                            Log.e("LoginScreen", "Error Firestore: ${e.message}")
+                                        }
+                                }
+                            } else {
+                                isLoading = false
+                                isError = true
+                                val exception = task.exception
+                                loginMessage = when (exception) {
+                                    is FirebaseAuthInvalidUserException -> "Usuario inexistente."
+                                    is FirebaseAuthInvalidCredentialsException -> "Contraseña incorrecta o correo inválido."
+                                    else -> {
+                                        Log.e("LoginScreen", "Error Login: ${exception?.message}")
+                                        "Error de conexión o inesperado."
+                                    }
+                                }
+                            }
+                        }
                 }
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isLoading
         ) {
             Text("Ingresar")
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        TextButton(onClick = onRegisterClick) {
+        TextButton(onClick = onRegisterClick, enabled = !isLoading) {
             Text("¿No tienes cuenta? Regístrate")
         }
     }

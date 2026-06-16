@@ -22,6 +22,7 @@ import com.example.p2pappmovil.presentation.register.RegisterScreen
 import com.example.p2pappmovil.presentation.splash.SplashWelcomeScreen
 import com.example.p2pappmovil.presentation.startoperation.StartOperationScreen
 import com.example.p2pappmovil.presentation.voucher.VoucherScreen
+import com.google.firebase.auth.FirebaseAuth
 
 @Composable
 fun AppNavigation() {
@@ -34,21 +35,44 @@ fun AppNavigation() {
         composable("splashWelcome") {
             SplashWelcomeScreen(
                 onLoginClick = { navController.navigate("login") },
-                onRegisterClick = { navController.navigate("register") }
+                onRegisterClick = { navController.navigate("register") },
+                onAutoLoginSuccess = { rol ->
+                    if (rol == "ADMIN") {
+                        navController.navigate("admin") {
+                            popUpTo("splashWelcome") { inclusive = true }
+                        }
+                    } else {
+                        navController.navigate("marketplace") {
+                            popUpTo("splashWelcome") { inclusive = true }
+                        }
+                    }
+                }
             )
         }
 
         composable("register") {
             RegisterScreen(
-                onRegisterSuccess = { navController.navigate("login") },
+                onRegisterSuccess = {
+                    navController.navigate("login") {
+                        popUpTo("register") { inclusive = true }
+                    }
+                },
                 onLoginClick = { navController.navigate("login") }
             )
         }
 
         composable("login") {
             LoginScreen(
-                onLoginSuccess = { navController.navigate("marketplace") },
-                onAdminLoginSuccess = { navController.navigate("admin") },
+                onLoginSuccess = { 
+                    navController.navigate("marketplace") {
+                        popUpTo("login") { inclusive = true }
+                    }
+                },
+                onAdminLoginSuccess = { 
+                    navController.navigate("admin") {
+                        popUpTo("login") { inclusive = true }
+                    }
+                },
                 onRegisterClick = { navController.navigate("register") }
             )
         }
@@ -61,6 +85,7 @@ fun AppNavigation() {
                 onNotificationsClick = { navController.navigate("notifications") },
                 onHistoryClick = { navController.navigate("history") },
                 onLogoutClick = {
+                    FirebaseAuth.getInstance().signOut()
                     navController.navigate("splashWelcome") {
                         popUpTo("marketplace") { inclusive = true }
                     }
@@ -158,7 +183,12 @@ fun AppNavigation() {
             AdminScreen(
                 onUserDetailClick = { navController.navigate("adminDetail") },
                 onDisputeDetailClick = { navController.navigate("adminDetail") },
-                onBackClick = { navController.navigate("login") }
+                onBackClick = { 
+                    FirebaseAuth.getInstance().signOut()
+                    navController.navigate("login") {
+                        popUpTo("admin") { inclusive = true }
+                    }
+                }
             )
         }
 

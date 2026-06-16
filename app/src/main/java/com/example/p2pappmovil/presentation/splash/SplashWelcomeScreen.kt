@@ -1,10 +1,12 @@
 package com.example.p2pappmovil.presentation.splash
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -12,12 +14,32 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 
 @Composable
 fun SplashWelcomeScreen(
     onLoginClick: () -> Unit = {},
-    onRegisterClick: () -> Unit = {}
+    onRegisterClick: () -> Unit = {},
+    onAutoLoginSuccess: (String) -> Unit = {}
 ) {
+    LaunchedEffect(Unit) {
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user != null) {
+            FirebaseFirestore.getInstance().collection("users").document(user.uid).get()
+                .addOnSuccessListener { document ->
+                    val rol = document.getString("rol") ?: "USER"
+                    Log.d("SplashWelcome", "UID: ${user.uid}")
+                    Log.d("SplashWelcome", "ROL: $rol")
+                    Log.d("SplashWelcome", "Pantalla destino: ${if (rol == "ADMIN") "ADMIN" else "USER"}")
+                    onAutoLoginSuccess(rol)
+                }
+                .addOnFailureListener { e ->
+                    Log.e("SplashWelcome", "Error Firestore: ${e.message}")
+                }
+        }
+    }
+
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
