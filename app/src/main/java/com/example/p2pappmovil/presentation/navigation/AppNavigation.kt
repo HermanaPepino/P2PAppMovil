@@ -47,12 +47,7 @@ fun AppNavigation() {
     val currentRoute = navBackStackEntry?.destination?.route
 
     val showFabRoutes = listOf(
-        "marketplace",
-        "history",
-        "notifications",
-        "startOperation/{offerId}",
-        "operationResume/{transactionId}",
-        "voucher/{transactionId}"
+        "marketplace"
     )
 
     Scaffold(
