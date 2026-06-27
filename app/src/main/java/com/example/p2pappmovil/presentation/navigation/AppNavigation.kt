@@ -204,11 +204,13 @@ fun AppNavigation() {
         composable("notifications") {
             NotificationsScreen(
                 onBackClick = { navController.navigate("marketplace") },
-                onNotificationClick = { type, refId ->
-                    when (type) {
-                        "TRANSACTION" -> navController.navigate("operationDetail/$refId")
-                        "DISPUTE" -> navController.navigate("operationDetail/$refId")
-                        else -> {}
+                onNotificationClick = { type, id ->
+                    if (id != null) {
+                        when (type) {
+                            "TRANSACTION", "DISPUTE" -> navController.navigate("operationDetail/$id")
+                            // Aquí podrías añadir soporte para tickets de soporte en el futuro
+                            else -> {}
+                        }
                     }
                 }
             )

@@ -25,15 +25,17 @@ data class Notification(
     val message: String = "",
     val date: String = "",
     val isRead: Boolean = false,
-    val type: String = "", // "TRANSACTION", "DISPUTE", "SYSTEM"
-    val referenceId: String = "" // ID de la transacción u objeto relacionado
+    val type: String = "", // "TRANSACTION", "DISPUTE", "SUPPORT_REPLY", "SYSTEM"
+    val referenceId: String = "", // ID de la transacción o disputa
+    val ticketId: String = "" // ID del ticket de soporte integrado
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotificationsScreen(
     onBackClick: () -> Unit = {},
-    onNotificationClick: (String, String) -> Unit = { _, _ -> }
+    // Callback combinado de dos parámetros para soportar todos los flujos
+    onNotificationClick: (String, String?) -> Unit = { _, _ -> }
 ) {
     val notifications = remember { mutableStateListOf<Notification>() }
     var isLoading by remember { mutableStateOf(true) }
@@ -94,16 +96,21 @@ fun NotificationsScreen(
                 )
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(notifications) { notification ->
+                    items(notifications, key = { it.id }) { notification ->
                         NotificationItem(
                             notification = notification,
                             onClick = {
-                                // Marcar como leída al hacer click
+                                // Marcar como leída en Firestore
                                 FirebaseFirestore.getInstance().collection("notifications")
                                     .document(notification.id)
                                     .update("isRead", true)
                                 
-                                onNotificationClick(notification.type, notification.referenceId)
+                                // Redirección inteligente combinada
+                                if (notification.type == "SUPPORT_REPLY") {
+                                    onNotificationClick(notification.type, notification.ticketId)
+                                } else {
+                                    onNotificationClick(notification.type, notification.referenceId)
+                                }
                             }
                         )
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp)
