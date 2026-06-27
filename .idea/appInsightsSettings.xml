@@ -8,10 +8,10 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="com.example.p2pappmovil" />
-                  <option name="mobileSdkAppId" value="1:174774759036:android:c951d0a00b7514f5fc23f9" />
-                  <option name="projectId" value="p2pappmovil" />
-                  <option name="projectNumber" value="174774759036" />
+                  <option name="appId" value="PLACEHOLDER" />
+                  <option name="mobileSdkAppId" value="" />
+                  <option name="projectId" value="" />
+                  <option name="projectNumber" value="" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />
