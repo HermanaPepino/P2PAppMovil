@@ -32,12 +32,11 @@ fun PublishOfferScreen(
 ) {
     val context = LocalContext.current
     val sharedPrefs = remember { context.getSharedPreferences("exchange_prefs", Context.MODE_PRIVATE) }
-    
+
     var isBuying by remember { mutableStateOf(true) }
     var currencyGive by remember { mutableStateOf("PEN") }
     var currencyReceive by remember { mutableStateOf("USD") }
-    
-    // State for rates
+
     var marketRate by remember { mutableDoubleStateOf(0.0) }
     var customRate by remember { mutableDoubleStateOf(0.0) }
     var isLoading by remember { mutableStateOf(false) }
@@ -57,7 +56,6 @@ fun PublishOfferScreen(
 
     val coroutineScope = rememberCoroutineScope()
 
-    // Fetch rate logic
     fun fetchRate(base: String, target: String) {
         if (base == target) {
             marketRate = 1.0
@@ -77,14 +75,11 @@ fun PublishOfferScreen(
                     marketRate = rate
                     customRate = rate
                     offlineMessage = null
-                    
-                    // Save to shared prefs
                     sharedPrefs.edit().putString("${base}_${target}", rate.toString()).apply()
                 } else {
                     rateErrorMessage = "Moneda no encontrada"
                 }
             } catch (e: Exception) {
-                // Try to load from shared prefs
                 val savedRateStr = sharedPrefs.getString("${base}_${target}", null)
                 if (savedRateStr != null) {
                     val savedRate = savedRateStr.toDouble()
@@ -100,7 +95,6 @@ fun PublishOfferScreen(
         }
     }
 
-    // Effect to fetch rate when currencies change
     LaunchedEffect(currencyGive, currencyReceive) {
         fetchRate(currencyGive, currencyReceive)
     }
@@ -108,7 +102,8 @@ fun PublishOfferScreen(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Publicar Oferta", fontWeight = FontWeight.Bold) },
+                // CAMBIO DINÁMICO 1: Título adaptativo según la acción
+                title = { Text(if (isBuying) "Publicar Oferta de Compra" else "Publicar Oferta de Venta", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     TextButton(onClick = onBackClick) { Text("Volver") }
                 }
@@ -123,7 +118,6 @@ fun PublishOfferScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Tipo de operación
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -141,19 +135,18 @@ fun PublishOfferScreen(
                 )
             }
 
-            // Monedas
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Doy", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    // CAMBIO DINÁMICO 2: Textos dinámicos basados en la intención comercial
+                    Text(if (isBuying) "Moneda a Entregar" else "Moneda que Poseo", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     SimpleDropdownSelector(selected = currencyGive, options = currencies) { currencyGive = it }
                 }
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Recibo", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text(if (isBuying) "Moneda a Recibir" else "Moneda que Solicito", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     SimpleDropdownSelector(selected = currencyReceive, options = currencies) { currencyReceive = it }
                 }
             }
 
-            // Market Rate Display
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.size(24.dp).align(Alignment.CenterHorizontally))
             } else {
@@ -172,7 +165,6 @@ fun PublishOfferScreen(
                 }
             }
 
-            // Tasa Ajustable
             Text("Tasa de cambio", fontWeight = FontWeight.SemiBold)
             val minRate = marketRate * 0.90
             val maxRate = marketRate * 1.10
@@ -211,33 +203,32 @@ fun PublishOfferScreen(
             )
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // CAMBIO DINÁMICO 3: Etiquetas dinámicas según isBuying
                 OutlinedTextField(
                     value = minAmount,
                     onValueChange = { minAmount = it },
-                    label = { Text("Monto mín") },
+                    label = { Text("Mínimo (${currencyGive})") },
                     modifier = Modifier.weight(1f),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
                 OutlinedTextField(
                     value = maxAmount,
                     onValueChange = { maxAmount = it },
-                    label = { Text("Monto máx") },
+                    label = { Text("Máximo (${currencyGive})") },
                     modifier = Modifier.weight(1f),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
             }
 
-            // Metodo de pago
             Text("Método de pago", fontWeight = FontWeight.SemiBold)
             SimpleDropdownSelector(selected = paymentMethod, options = paymentMethods, placeholder = "Seleccionar método") {
                 paymentMethod = it
             }
 
-            // Descripción
             OutlinedTextField(
                 value = description,
                 onValueChange = { description = it },
-                label = { Text("Descripción (opcional)") },
+                label = { Text("Descripción / Comentario adicional") },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 2
             )
@@ -277,14 +268,13 @@ fun PublishOfferScreen(
                         }
                         else -> {
                             errorMessage = null
-                            isLoading = true // Activamos la barra de carga interna
+                            isLoading = true
 
                             val auth = FirebaseAuth.getInstance()
                             val db = FirebaseFirestore.getInstance()
                             val uid = auth.currentUser?.uid
 
                             if (uid != null) {
-                                // 1. Primero obtenemos el nombre real del usuario desde la colección "users"
                                 db.collection("users").document(uid).get()
                                     .addOnSuccessListener { document ->
                                         val nombres = document.getString("nombres") ?: "Usuario"
@@ -292,28 +282,27 @@ fun PublishOfferScreen(
                                         val fullName = "$nombres $apellidos".trim()
                                         val verified = document.getBoolean("isVerified") ?: false
 
-                                        // 2. Armamos el objeto con los datos reales del formulario y de la BD
                                         val nuevaOferta = hashMapOf(
                                             "userId" to uid,
                                             "userName" to fullName,
                                             "isVerified" to verified,
-                                            "reputation" to "5.0/5 (1 op)", // Valor inicial base
+                                            "reputation" to "5.0/5 (1 op)",
                                             "isBuying" to isBuying,
                                             "currencyGive" to currencyGive,
                                             "currencyReceive" to currencyReceive,
                                             "exchangeRate" to customRate,
-                                            "minAmount" to (minAmount.toDoubleOrNull() ?: 0.0),
-                                            "maxAmount" to (maxAmount.toDoubleOrNull() ?: 0.0),
+                                            "minAmount" to min,
+                                            "maxAmount" to max,
                                             "paymentMethod" to paymentMethod,
+                                            // SOLUCIÓN AL BUG: Se añade la descripción al mapeo de Firestore
+                                            "description" to description.trim(),
                                             "date" to java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.US).format(java.util.Date())
                                         )
 
-                                        // 3. Subimos la oferta a la colección "offers"
                                         db.collection("offers").add(nuevaOferta)
                                             .addOnSuccessListener {
                                                 isLoading = false
                                                 successMessage = "Oferta publicada correctamente"
-                                                // Regresa automáticamente al Marketplace de forma reactiva
                                                 onPublishSuccess()
                                             }
                                             .addOnFailureListener { e ->
@@ -332,11 +321,12 @@ fun PublishOfferScreen(
                         }
                     }
                 },
+                // CAMBIO DINÁMICO 4: Botón dinámico según el flujo seleccionado
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Publicar Oferta")
+                Text(if (isBuying) "Publicar Oferta de Compra" else "Publicar Oferta de Venta")
             }
-            
+
             OutlinedButton(onClick = onBackClick, modifier = Modifier.fillMaxWidth()) {
                 Text("Volver")
             }
@@ -344,6 +334,7 @@ fun PublishOfferScreen(
     }
 }
 
+// SimpleDropdownSelector se mantiene igual...
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SimpleDropdownSelector(

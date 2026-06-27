@@ -31,12 +31,13 @@ data class Offer(
     val isVerified: Boolean = false,
     val reputation: String = "0.0/5 (0 ops)",
     val isBuying: Boolean = true, // true = Compra, false = Vender
-    val originCurrency: String = "USD",
-    val targetCurrency: String = "PEN",
+    val currencyGive: String = "USD",
+    val currencyReceive: String = "PEN",
     val exchangeRate: Double = 0.0,
     val minAmount: Double = 0.0,
     val maxAmount: Double = 0.0,
     val paymentMethod: String = "",
+    val description: String = "",
     val date: String = ""
 )
 
@@ -45,6 +46,7 @@ data class Offer(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MarketplaceScreen(
+    navController: androidx.navigation.NavController, // Agregamos el navController para acceder al savedStateHandle
     onFilterClick: () -> Unit = {},
     onPublishOfferClick: () -> Unit = {},
     onOfferClick: (String) -> Unit = {},
@@ -57,13 +59,33 @@ fun MarketplaceScreen(
     val scope = rememberCoroutineScope()
 
     // Estado reactivo que almacenará las ofertas reales de la base de datos
-    val offersList = remember { mutableStateListOf<Offer>() }
+    val allOffers = remember { mutableStateListOf<Offer>() }
     var isLoading by remember { mutableStateOf(true) }
+
+    // Estados para los filtros (observando el savedStateHandle de la navegación)
+    val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
+    val filterCurrencyGive by savedStateHandle?.getStateFlow("currencyGive", "")?.collectAsState() ?: remember { mutableStateOf("") }
+    val filterCurrencyReceive by savedStateHandle?.getStateFlow("currencyReceive", "")?.collectAsState() ?: remember { mutableStateOf("") }
+    val filterMinAmount by savedStateHandle?.getStateFlow<Double?>("minAmount", null)?.collectAsState() ?: remember { mutableStateOf(null) }
+    val filterMaxAmount by savedStateHandle?.getStateFlow<Double?>("maxAmount", null)?.collectAsState() ?: remember { mutableStateOf(null) }
+    val filterOnlyVerified by savedStateHandle?.getStateFlow("onlyVerified", false)?.collectAsState() ?: remember { mutableStateOf(false) }
+
+    // Lista filtrada derivada
+    val filteredOffers = remember(allOffers.size, filterCurrencyGive, filterCurrencyReceive, filterMinAmount, filterMaxAmount, filterOnlyVerified) {
+        allOffers.filter { offer ->
+            val matchGive = filterCurrencyGive.isEmpty() || offer.currencyGive == filterCurrencyGive
+            val matchReceive = filterCurrencyReceive.isEmpty() || offer.currencyReceive == filterCurrencyReceive
+            val matchMin = filterMinAmount == null || offer.minAmount >= filterMinAmount!!
+            val matchMax = filterMaxAmount == null || offer.maxAmount <= filterMaxAmount!!
+            val matchVerified = !filterOnlyVerified || offer.isVerified
+            
+            matchGive && matchReceive && matchMin && matchMax && matchVerified
+        }
+    }
 
     // Escuchador en tiempo real de Firestore
     DisposableEffect (Unit) {
         val db = FirebaseFirestore.getInstance()
-        // Escuchamos la colección "offers" ordenada por fecha descendente (más recientes primero)
         val listenerRegistration = db.collection("offers")
             .orderBy("date", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, error ->
@@ -74,19 +96,17 @@ fun MarketplaceScreen(
                 }
 
                 if (snapshot != null) {
-                    // Limpiamos la lista local antes de añadir los nuevos cambios
-                    offersList.clear()
+                    allOffers.clear()
                     for (document in snapshot.documents) {
                         val offer = document.toObject(Offer::class.java)?.copy(id = document.id)
                         if (offer != null) {
-                            offersList.add(offer)
+                            allOffers.add(offer)
                         }
                     }
                     isLoading = false
                 }
             }
 
-        // Se remueve el escuchador automáticamente cuando la pantalla sale de la composición
         onDispose {
             listenerRegistration.remove()
         }
@@ -135,10 +155,27 @@ fun MarketplaceScreen(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("Marketplace", fontWeight = FontWeight.Bold) },
+                    title = { Column {
+                        Text("Marketplace", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                        val emailUsuario = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.email ?: "Usuario"
+                        Text(
+                            text = "¡Hola, ${emailUsuario.substringBefore("@")}!",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.Gray
+                        )
+                    }
+                            },
                     actions = {
-                        IconButton(onClick = onFilterClick) {
-                            Icon(Icons.Default.FilterList, contentDescription = "Filtros")
+                        BadgedBox(
+                            badge = {
+                                if (filterCurrencyGive.isNotEmpty() || filterCurrencyReceive.isNotEmpty() || filterMinAmount != null || filterOnlyVerified) {
+                                    Badge(containerColor = MaterialTheme.colorScheme.primary)
+                                }
+                            }
+                        ) {
+                            IconButton(onClick = onFilterClick) {
+                                Icon(Icons.Default.FilterList, contentDescription = "Filtros")
+                            }
                         }
                         IconButton(onClick = onNotificationsClick) {
                             Icon(Icons.Default.Notifications, contentDescription = "Notificaciones")
@@ -167,20 +204,38 @@ fun MarketplaceScreen(
             ) {
                 if (isLoading) {
                     CircularProgressIndicator()
-                } else if (offersList.isEmpty()) {
-                    Text(
-                        text = "No hay ofertas disponibles por el momento.",
-                        color = Color.Gray,
-                        style = MaterialTheme.typography.bodyLarge
-                    )
+                } else if (filteredOffers.isEmpty()) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = if (allOffers.isEmpty()) "No hay ofertas disponibles." else "No hay ofertas que coincidan con tus filtros.",
+                            color = Color.Gray,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        if (allOffers.isNotEmpty()) {
+                            TextButton(onClick = {
+                                savedStateHandle?.apply {
+                                    set("currencyGive", "")
+                                    set("currencyReceive", "")
+                                    set("minAmount", null)
+                                    set("maxAmount", null)
+                                    set("onlyVerified", false)
+                                }
+                            }) {
+                                Text("Limpiar filtros")
+                            }
+                        }
+                    }
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        items(offersList, key = { it.id }) { offer ->
-                            OfferCard(offer = offer, onClick = {onOfferClick(offer.id)})
+                        val miUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+                        items(filteredOffers, key = { it.id }) { offer ->
+                            if(offer.userId != miUid){
+                                OfferCard(offer = offer, onClick = {onOfferClick(offer.id)})
+                            }
                         }
                     }
                 }
@@ -239,7 +294,7 @@ fun OfferCard(offer: Offer, onClick: () -> Unit) {
                 Column {
                     Text(text = "Cambio", style = MaterialTheme.typography.labelSmall)
                     Text(
-                        text = if (offer.isBuying) "Compra: ${offer.originCurrency} -> ${offer.targetCurrency}" else "Venta: ${offer.originCurrency} -> ${offer.targetCurrency}",
+                        text = if (offer.isBuying) "Compra: ${offer.currencyGive} -> ${offer.currencyReceive}" else "Venta: ${offer.currencyGive} -> ${offer.currencyReceive}",
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold
                     )
@@ -264,7 +319,7 @@ fun OfferCard(offer: Offer, onClick: () -> Unit) {
                 Column {
                     Text(text = "Límites", style = MaterialTheme.typography.labelSmall)
                     Text(
-                        text = "${offer.originCurrency} ${String.format(java.util.Locale.US, "%.2f", offer.minAmount)} - ${String.format(java.util.Locale.US, "%.2f", offer.maxAmount)}",
+                        text = "${offer.currencyGive} ${String.format(java.util.Locale.US, "%.2f", offer.minAmount)} - ${String.format(java.util.Locale.US, "%.2f", offer.maxAmount)}",
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }

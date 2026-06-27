@@ -79,9 +79,9 @@ fun AppNavigation() {
 
         composable("marketplace") {
             MarketplaceScreen(
+                navController = navController,
                 onFilterClick = { navController.navigate("filters") },
                 onPublishOfferClick = { navController.navigate("publishOffer") },
-                // Cambia esta línea para pasar el ID dinámico:
                 onOfferClick = { id -> navController.navigate("startOperation/$id") },
                 onNotificationsClick = { navController.navigate("notifications") },
                 onHistoryClick = { navController.navigate("history") },
@@ -96,8 +96,26 @@ fun AppNavigation() {
 
         composable("filters") {
             FilterOffersScreen(
-                onApplyFilters = { navController.popBackStack() },
-                onClearFilters = { /* No navega, limpia localmente */ },
+                onApplyFilters = { cGive, cRec, min, max, verified ->
+                    navController.previousBackStackEntry?.savedStateHandle?.apply {
+                        set("currencyGive", cGive)
+                        set("currencyReceive", cRec)
+                        set("minAmount", min)
+                        set("maxAmount", max)
+                        set("onlyVerified", verified)
+                    }
+                    navController.popBackStack()
+                },
+                onClearFilters = {
+                    navController.previousBackStackEntry?.savedStateHandle?.apply {
+                        set("currencyGive", "")
+                        set("currencyReceive", "")
+                        set("minAmount", null)
+                        set("maxAmount", null)
+                        set("onlyVerified", false)
+                    }
+                    navController.popBackStack()
+                },
                 onCloseClick = { navController.popBackStack() }
             )
         }
@@ -109,8 +127,10 @@ fun AppNavigation() {
             )
         }
 
-        composable("profile") {
+        composable("profile/{userId}") { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId") ?: ""
             ProfileScreen(
+                userId = userId,
                 onOperateClick = { navController.navigate("startOperation") },
                 onBackClick = { navController.popBackStack() }
             )
@@ -121,7 +141,7 @@ fun AppNavigation() {
             StartOperationScreen(
                 offerId = offerId,
                 onConfirmOperation = { txId -> navController.navigate("operationResume/$txId") },
-                onProfileClick = { navController.navigate("profile") },
+                onProfileClick = { userId -> navController.navigate("profile/$userId") },
                 onBackClick = { navController.navigate("marketplace") }
             )
         }
@@ -131,7 +151,7 @@ fun AppNavigation() {
             OperationResumeScreen(
                 transactionId = txId,
                 onUploadVoucherClick = { navController.navigate("voucher/$txId") },
-                onBackClick = { navController.navigate("startOperation") }
+                onBackClick = { navController.navigate("marketplace") }
             )
         }
 
@@ -146,37 +166,51 @@ fun AppNavigation() {
 
         composable("history") {
             HistoryScreen(
-                onOperationClick = { navController.navigate("operationDetail") },
+                onOperationClick = { txId -> navController.navigate("operationDetail/$txId") },
                 onBackClick = { navController.navigate("marketplace") }
             )
         }
 
-        composable("operationDetail") {
+        composable("operationDetail/{transactionId}") { backStackEntry ->
+            val txId = backStackEntry.arguments?.getString("transactionId") ?: ""
             OperationDetailScreen(
-                onRateUserClick = { navController.navigate("rating") },
-                onReportProblemClick = { navController.navigate("dispute") },
+                transactionId = txId,
+                onRateUserClick = { uId -> navController.navigate("rating/$txId/$uId") },
+                onReportProblemClick = { navController.navigate("dispute/$txId") },
                 onBackClick = { navController.navigate("history") }
             )
         }
 
-        composable("rating") {
+        composable("rating/{transactionId}/{userId}") { backStackEntry ->
+            val txId = backStackEntry.arguments?.getString("transactionId") ?: ""
+            val userId = backStackEntry.arguments?.getString("userId") ?: ""
             RatingScreen(
-                onRatingSent = { navController.navigate("operationDetail") },
-                onBackClick = { navController.navigate("operationDetail") }
+                transactionId = txId,
+                targetUserId = userId,
+                onRatingSent = { navController.popBackStack() },
+                onBackClick = { navController.popBackStack() }
             )
         }
 
-        composable("dispute") {
+        composable("dispute/{transactionId}") { backStackEntry ->
+            val txId = backStackEntry.arguments?.getString("transactionId") ?: ""
             DisputeScreen(
-                onDisputeSent = { navController.navigate("history") },
-                onBackClick = { navController.navigate("operationDetail") }
+                transactionId = txId,
+                onDisputeSent = { navController.popBackStack() },
+                onBackClick = { navController.popBackStack() }
             )
         }
 
         composable("notifications") {
             NotificationsScreen(
                 onBackClick = { navController.navigate("marketplace") },
-                onNotificationClick = { navController.navigate("operationDetail") }
+                onNotificationClick = { type, refId ->
+                    when (type) {
+                        "TRANSACTION" -> navController.navigate("operationDetail/$refId")
+                        "DISPUTE" -> navController.navigate("operationDetail/$refId")
+                        else -> {}
+                    }
+                }
             )
         }
 
@@ -188,7 +222,6 @@ fun AppNavigation() {
 
         composable("admin") {
             AdminScreen(
-                // Recibimos el txId de la transacción seleccionada y lo pasamos a la ruta
                 onUserDetailClick = { txId -> navController.navigate("adminDetail/$txId") },
                 onDisputeDetailClick = { txId -> navController.navigate("adminDetail/$txId") },
                 onBackClick = {

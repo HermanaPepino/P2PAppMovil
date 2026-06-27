@@ -37,7 +37,7 @@ data class Operation(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
-    onOperationClick: () -> Unit = {},
+    onOperationClick: (String) -> Unit = {},
     onBackClick: () -> Unit = {}
 ) {
     val operations = remember { mutableStateListOf<Operation>() }
@@ -128,7 +128,7 @@ fun HistoryScreen(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onOperationClick() },
+                                .clickable { onOperationClick(operation.id) },
                             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                         ) {
                             Column(

@@ -1,5 +1,6 @@
 package com.example.p2pappmovil.presentation.notifications
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -8,35 +9,68 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 
 data class Notification(
-    val id: Int,
-    val title: String,
-    val message: String,
-    val date: String,
-    val isRead: Boolean
-)
-
-val mockNotifications = listOf(
-    Notification(1, "Operación Exitosa", "Tu cambio de 100 USD ha sido completado.", "Hace 5 min", false),
-    Notification(2, "Nueva Oferta", "Hay una nueva oferta que coincide con tus filtros.", "Hace 1 hora", true),
-    Notification(3, "Seguridad", "Se ha detectado un inicio de sesión desde un nuevo dispositivo.", "Ayer", true),
-    Notification(4, "Verificación", "Tu cuenta ha sido verificada exitosamente.", "20 Oct", true),
-    Notification(5, "Mensaje Nuevo", "Juan Perez te ha enviado un mensaje sobre tu oferta.", "19 Oct", false)
+    val id: String = "",
+    val title: String = "",
+    val message: String = "",
+    val date: String = "",
+    val isRead: Boolean = false,
+    val type: String = "", // "TRANSACTION", "DISPUTE", "SYSTEM"
+    val referenceId: String = "" // ID de la transacción u objeto relacionado
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotificationsScreen(
     onBackClick: () -> Unit = {},
-    onNotificationClick: () -> Unit = {}
+    onNotificationClick: (String, String) -> Unit = { _, _ -> }
 ) {
+    val notifications = remember { mutableStateListOf<Notification>() }
+    var isLoading by remember { mutableStateOf(true) }
+    val currentUser = FirebaseAuth.getInstance().currentUser
+
+    DisposableEffect(currentUser?.uid) {
+        if (currentUser == null) {
+            isLoading = false
+            return@DisposableEffect onDispose {}
+        }
+
+        val db = FirebaseFirestore.getInstance()
+        val listener = db.collection("notifications")
+            .whereEqualTo("userId", currentUser.uid)
+            .orderBy("date", Query.Direction.DESCENDING)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e("NotificationsScreen", "Error: ${error.message}")
+                    isLoading = false
+                    return@addSnapshotListener
+                }
+
+                if (snapshot != null) {
+                    notifications.clear()
+                    for (doc in snapshot.documents) {
+                        val notif = doc.toObject(Notification::class.java)?.copy(id = doc.id)
+                        if (notif != null) {
+                            notifications.add(notif)
+                        }
+                    }
+                }
+                isLoading = false
+            }
+
+        onDispose { listener.remove() }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -49,14 +83,32 @@ fun NotificationsScreen(
             )
         }
     ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            items(mockNotifications) { notification ->
-                NotificationItem(notification = notification, onClick = onNotificationClick)
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp)
+        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            if (isLoading) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            } else if (notifications.isEmpty()) {
+                Text(
+                    text = "No tienes notificaciones por el momento.",
+                    modifier = Modifier.align(Alignment.Center),
+                    color = Color.Gray
+                )
+            } else {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(notifications) { notification ->
+                        NotificationItem(
+                            notification = notification,
+                            onClick = {
+                                // Marcar como leída al hacer click
+                                FirebaseFirestore.getInstance().collection("notifications")
+                                    .document(notification.id)
+                                    .update("isRead", true)
+                                
+                                onNotificationClick(notification.type, notification.referenceId)
+                            }
+                        )
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp)
+                    }
+                }
             }
         }
     }
