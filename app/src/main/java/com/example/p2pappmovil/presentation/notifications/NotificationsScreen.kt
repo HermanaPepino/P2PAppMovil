@@ -1,5 +1,6 @@
 package com.example.p2pappmovil.presentation.notifications
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,39 +25,52 @@ data class Notification(
     val message: String = "",
     val date: String = "",
     val isRead: Boolean = false,
-    val type: String = "",
-    val ticketId: String = ""
+    val type: String = "", // "TRANSACTION", "DISPUTE", "SUPPORT_REPLY", "SYSTEM"
+    val referenceId: String = "", // ID de la transacción o disputa
+    val ticketId: String = "" // ID del ticket de soporte integrado
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotificationsScreen(
     onBackClick: () -> Unit = {},
-    onNotificationClick: (String?) -> Unit = {}
+    // Callback combinado de dos parámetros para soportar todos los flujos
+    onNotificationClick: (String, String?) -> Unit = { _, _ -> }
 ) {
-    val db = FirebaseFirestore.getInstance()
-    val auth = FirebaseAuth.getInstance()
-    val currentUser = auth.currentUser
-    
-    var notifications by remember { mutableStateOf<List<Notification>>(emptyList()) }
+    val notifications = remember { mutableStateListOf<Notification>() }
     var isLoading by remember { mutableStateOf(true) }
+    val currentUser = FirebaseAuth.getInstance().currentUser
 
-    LaunchedEffect(currentUser) {
-        if (currentUser != null) {
-            db.collection("notifications")
-                .whereEqualTo("userId", currentUser.uid)
-                .orderBy("timestamp", Query.Direction.DESCENDING)
-                .addSnapshotListener { snapshot, _ ->
-                    if (snapshot != null) {
-                        notifications = snapshot.documents.map { doc ->
-                            doc.toObject(Notification::class.java)!!.copy(id = doc.id)
+    DisposableEffect(currentUser?.uid) {
+        if (currentUser == null) {
+            isLoading = false
+            return@DisposableEffect onDispose {}
+        }
+
+        val db = FirebaseFirestore.getInstance()
+        val listener = db.collection("notifications")
+            .whereEqualTo("userId", currentUser.uid)
+            .orderBy("date", Query.Direction.DESCENDING)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e("NotificationsScreen", "Error: ${error.message}")
+                    isLoading = false
+                    return@addSnapshotListener
+                }
+
+                if (snapshot != null) {
+                    notifications.clear()
+                    for (doc in snapshot.documents) {
+                        val notif = doc.toObject(Notification::class.java)?.copy(id = doc.id)
+                        if (notif != null) {
+                            notifications.add(notif)
                         }
                     }
-                    isLoading = false
                 }
-        } else {
-            isLoading = false
-        }
+                isLoading = false
+            }
+
+        onDispose { listener.remove() }
     }
 
     Scaffold(
@@ -75,20 +89,27 @@ fun NotificationsScreen(
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             } else if (notifications.isEmpty()) {
-                Text("No tienes notificaciones.", modifier = Modifier.align(Alignment.Center), color = Color.Gray)
+                Text(
+                    text = "No tienes notificaciones por el momento.",
+                    modifier = Modifier.align(Alignment.Center),
+                    color = Color.Gray
+                )
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(notifications) { notification ->
+                    items(notifications, key = { it.id }) { notification ->
                         NotificationItem(
-                            notification = notification, 
+                            notification = notification,
                             onClick = {
-                                // Mark as read
-                                db.collection("notifications").document(notification.id).update("isRead", true)
+                                // Marcar como leída en Firestore
+                                FirebaseFirestore.getInstance().collection("notifications")
+                                    .document(notification.id)
+                                    .update("isRead", true)
                                 
+                                // Redirección inteligente combinada
                                 if (notification.type == "SUPPORT_REPLY") {
-                                    onNotificationClick(notification.ticketId)
+                                    onNotificationClick(notification.type, notification.ticketId)
                                 } else {
-                                    onNotificationClick(null)
+                                    onNotificationClick(notification.type, notification.referenceId)
                                 }
                             }
                         )

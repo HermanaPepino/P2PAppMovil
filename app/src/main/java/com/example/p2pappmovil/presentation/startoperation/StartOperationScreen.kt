@@ -20,10 +20,11 @@ import java.util.Date
 fun StartOperationScreen(
     offerId: String, // Recibe el ID real de la oferta seleccionada
     onConfirmOperation: (String) -> Unit = {},
-    onProfileClick: () -> Unit = {},
+    onProfileClick: (String) -> Unit = {},
     onBackClick: () -> Unit = {}
 ) {
     // Variables de estado dinámicas
+    var offerorUid by remember { mutableStateOf("") }
     var offerorName by remember { mutableStateOf("") }
     var sourceCurrency by remember { mutableStateOf("") }
     var destCurrency by remember { mutableStateOf("") }
@@ -45,6 +46,7 @@ fun StartOperationScreen(
         FirebaseFirestore.getInstance().collection("offers").document(offerId).get()
             .addOnSuccessListener { doc ->
                 if (doc.exists()) {
+                    offerorUid = doc.getString("userId") ?: ""
                     offerorName = doc.getString("userName") ?: "Desconocido"
                     sourceCurrency = doc.getString("currencyGive") ?: ""
                     destCurrency = doc.getString("currencyReceive") ?: ""
@@ -91,7 +93,7 @@ fun StartOperationScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(text = "Nombre: $offerorName")
                         Text(text = "Método de Pago: $paymentMethod")
-                        TextButton(onClick = onProfileClick) { Text("Ver perfil") }
+                        TextButton(onClick = { onProfileClick(offerorUid) }) { Text("Ver perfil") }
                     }
                 }
 
@@ -178,6 +180,18 @@ fun StartOperationScreen(
 
                                     db.collection("transactions").add(nuevaTransaccion)
                                         .addOnSuccessListener { documentReference ->
+                                            // CREAR NOTIFICACIÓN PARA EL OFERENTE
+                                            val notification = hashMapOf(
+                                                "userId" to offerorUid,
+                                                "title" to "Nueva Operación Iniciada",
+                                                "message" to "El usuario ${FirebaseAuth.getInstance().currentUser?.email?.substringBefore("@")} quiere cambiar ${String.format(java.util.Locale.US, "%.2f", amount)} $sourceCurrency.",
+                                                "date" to java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.US).format(Date()),
+                                                "isRead" to false,
+                                                "type" to "TRANSACTION",
+                                                "referenceId" to documentReference.id
+                                            )
+                                            db.collection("notifications").add(notification)
+
                                             isLoading = false
                                             onConfirmOperation(documentReference.id)
                                         }

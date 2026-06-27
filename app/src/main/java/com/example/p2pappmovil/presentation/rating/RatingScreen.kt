@@ -18,22 +18,46 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import java.util.Date
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RatingScreen(
+    transactionId: String,
+    targetUserId: String,
     onRatingSent: () -> Unit = {},
     onBackClick: () -> Unit = {}
 ) {
-    val counterpartyName = "Juan Pérez"
-    val operationCode = "OP-982341"
-    val operationDate = "24/05/2024 15:30"
+    var counterpartyName by remember { mutableStateOf("Cargando...") }
+    var operationCode by remember { mutableStateOf("") }
+    var operationDate by remember { mutableStateOf("") }
     val maxCommentLength = 500
 
-    var rating by remember { mutableStateOf(0) }
+    var rating by remember { mutableIntStateOf(0) }
     var comment by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var successMessage by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    var isSending by remember { mutableStateOf(false) }
+
+    val db = FirebaseFirestore.getInstance()
+
+    LaunchedEffect(transactionId) {
+        db.collection("transactions").document(transactionId).get()
+            .addOnSuccessListener { doc ->
+                if (doc.exists()) {
+                    counterpartyName = doc.getString("offererName") ?: "Usuario"
+                    operationCode = "TX-${doc.id.take(8).uppercase()}"
+                    operationDate = doc.getString("date") ?: ""
+                }
+                isLoading = false
+            }
+            .addOnFailureListener {
+                isLoading = false
+            }
+    }
 
     Scaffold(
         topBar = {
@@ -56,153 +80,181 @@ fun RatingScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+            if (isLoading) {
+                CircularProgressIndicator()
+            } else {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = null,
+                    Column(
                         modifier = Modifier
-                            .size(72.dp)
-                            .clip(CircleShape),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = counterpartyName,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = operationCode,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.Gray
-                    )
-                    Text(
-                        text = operationDate,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray
-                    )
-                }
-            }
-
-            Text(
-                text = "Puntuación",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.align(Alignment.Start)
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                repeat(5) { index ->
-                    IconButton(
-                        onClick = {
-                            rating = index + 1
-                            errorMessage = null
-                        }
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
-                            imageVector = if (index < rating) Icons.Default.Star else Icons.Default.StarOutline,
-                            contentDescription = "Estrella ${index + 1}",
-                            tint = Color(0xFFFFC107),
-                            modifier = Modifier.size(40.dp)
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(CircleShape),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = counterpartyName,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = operationCode,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Gray
+                        )
+                        Text(
+                            text = operationDate,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray
                         )
                     }
                 }
-            }
 
-            if (rating > 0) {
-                val label = when (rating) {
-                    1 -> "Muy malo"
-                    2 -> "Malo"
-                    3 -> "Regular"
-                    4 -> "Bueno"
-                    5 -> "Excelente"
-                    else -> ""
-                }
                 Text(
-                    text = label,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Medium
+                    text = "Puntuación",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.align(Alignment.Start)
                 )
-            }
 
-            OutlinedTextField(
-                value = comment,
-                onValueChange = {
-                    if (it.length <= maxCommentLength) {
-                        comment = it
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    repeat(5) { index ->
+                        IconButton(
+                            onClick = {
+                                rating = index + 1
+                                errorMessage = null
+                            },
+                            enabled = !isSending
+                        ) {
+                            Icon(
+                                imageVector = if (index < rating) Icons.Default.Star else Icons.Default.StarOutline,
+                                contentDescription = "Estrella ${index + 1}",
+                                tint = Color(0xFFFFC107),
+                                modifier = Modifier.size(40.dp)
+                            )
+                        }
                     }
-                },
-                label = { Text("Comentario (opcional)") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 120.dp),
-                minLines = 4,
-                maxLines = 6,
-                supportingText = {
+                }
+
+                if (rating > 0) {
+                    val label = when (rating) {
+                        1 -> "Muy malo"
+                        2 -> "Malo"
+                        3 -> "Regular"
+                        4 -> "Bueno"
+                        5 -> "Excelente"
+                        else -> ""
+                    }
                     Text(
-                        text = "${comment.length}/$maxCommentLength",
-                        color = if (comment.length >= maxCommentLength) MaterialTheme.colorScheme.error else Color.Gray
+                        text = label,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium
                     )
                 }
-            )
 
-            if (errorMessage != null) {
-                Text(
-                    text = errorMessage!!,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-
-            if (successMessage != null) {
-                Text(
-                    text = successMessage!!,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-
-            Button(
-                onClick = {
-                    if (rating == 0) {
-                        errorMessage = "Debes seleccionar una puntuación"
-                        successMessage = null
-                    } else {
-                        successMessage = "Calificación registrada correctamente"
-                        errorMessage = null
-                        onRatingSent()
+                OutlinedTextField(
+                    value = comment,
+                    onValueChange = {
+                        if (it.length <= maxCommentLength) {
+                            comment = it
+                        }
+                    },
+                    label = { Text("Comentario (opcional)") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 120.dp),
+                    minLines = 4,
+                    maxLines = 6,
+                    enabled = !isSending,
+                    supportingText = {
+                        Text(
+                            text = "${comment.length}/$maxCommentLength",
+                            color = if (comment.length >= maxCommentLength) MaterialTheme.colorScheme.error else Color.Gray
+                        )
                     }
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Default.Send, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Enviar Calificación")
-            }
+                )
 
-            OutlinedButton(
-                onClick = onBackClick,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Default.ArrowBack, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Volver")
+                if (errorMessage != null) {
+                    Text(
+                        text = errorMessage!!,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+
+                if (successMessage != null) {
+                    Text(
+                        text = successMessage!!,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+
+                if (isSending) {
+                    CircularProgressIndicator()
+                } else {
+                    Button(
+                        onClick = {
+                            if (rating == 0) {
+                                errorMessage = "Debes seleccionar una puntuación"
+                                successMessage = null
+                            } else {
+                                isSending = true
+                                val currentUser = FirebaseAuth.getInstance().currentUser
+                                val ratingData = hashMapOf(
+                                    "transactionId" to transactionId,
+                                    "fromUserId" to (currentUser?.uid ?: ""),
+                                    "toUserId" to targetUserId,
+                                    "rating" to rating,
+                                    "comment" to comment,
+                                    "date" to java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.US).format(Date())
+                                )
+
+                                db.collection("ratings").add(ratingData)
+                                    .addOnSuccessListener {
+                                        successMessage = "Calificación registrada correctamente"
+                                        onRatingSent()
+                                    }
+                                    .addOnFailureListener {
+                                        errorMessage = "Error al enviar calificación"
+                                        isSending = false
+                                    }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Send, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Enviar Calificación")
+                    }
+                }
+
+                OutlinedButton(
+                    onClick = onBackClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSending
+                ) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Volver")
+                }
             }
         }
     }

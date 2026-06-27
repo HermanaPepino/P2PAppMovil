@@ -3,11 +3,7 @@ package com.example.p2pappmovil.presentation.navigation
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.SupportAgent
-import androidx.compose.material3.FabPosition
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -27,7 +23,6 @@ import com.example.p2pappmovil.presentation.marketplace.MarketplaceScreen
 import com.example.p2pappmovil.presentation.notifications.NotificationsScreen
 import com.example.p2pappmovil.presentation.operationdetail.OperationDetailScreen
 import com.example.p2pappmovil.presentation.operationresume.OperationResumeScreen
-import com.example.p2pappmovil.presentation.operationresume.OperationResumeScreen
 import com.example.p2pappmovil.presentation.profile.ProfileScreen
 import com.example.p2pappmovil.presentation.publishoffer.PublishOfferScreen
 import com.example.p2pappmovil.presentation.push.PushInfoScreen
@@ -46,9 +41,7 @@ fun AppNavigation() {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    val showFabRoutes = listOf(
-        "marketplace"
-    )
+    val showFabRoutes = listOf("marketplace")
 
     Scaffold(
         floatingActionButton = {
@@ -116,6 +109,7 @@ fun AppNavigation() {
 
             composable("marketplace") {
                 MarketplaceScreen(
+                    navController = navController,
                     onFilterClick = { navController.navigate("filters") },
                     onPublishOfferClick = { navController.navigate("publishOffer") },
                     onOfferClick = { id -> navController.navigate("startOperation/$id") },
@@ -132,8 +126,26 @@ fun AppNavigation() {
 
             composable("filters") {
                 FilterOffersScreen(
-                    onApplyFilters = { navController.popBackStack() },
-                    onClearFilters = { /* No navega, limpia localmente */ },
+                    onApplyFilters = { cGive, cRec, min, max, verified ->
+                        navController.previousBackStackEntry?.savedStateHandle?.apply {
+                            set("currencyGive", cGive)
+                            set("currencyReceive", cRec)
+                            set("minAmount", min)
+                            set("maxAmount", max)
+                            set("onlyVerified", verified)
+                        }
+                        navController.popBackStack()
+                    },
+                    onClearFilters = {
+                        navController.previousBackStackEntry?.savedStateHandle?.apply {
+                            set("currencyGive", "")
+                            set("currencyReceive", "")
+                            set("minAmount", null)
+                            set("maxAmount", null)
+                            set("onlyVerified", false)
+                        }
+                        navController.popBackStack()
+                    },
                     onCloseClick = { navController.popBackStack() }
                 )
             }
@@ -145,8 +157,10 @@ fun AppNavigation() {
                 )
             }
 
-            composable("profile") {
+            composable("profile/{userId}") { backStackEntry ->
+                val userId = backStackEntry.arguments?.getString("userId") ?: ""
                 ProfileScreen(
+                    userId = userId,
                     onOperateClick = { navController.navigate("startOperation") },
                     onBackClick = { navController.popBackStack() }
                 )
@@ -157,7 +171,7 @@ fun AppNavigation() {
                 StartOperationScreen(
                     offerId = offerId,
                     onConfirmOperation = { txId -> navController.navigate("operationResume/$txId") },
-                    onProfileClick = { navController.navigate("profile") },
+                    onProfileClick = { userId -> navController.navigate("profile/$userId") },
                     onBackClick = { navController.navigate("marketplace") }
                 )
             }
@@ -167,7 +181,7 @@ fun AppNavigation() {
                 OperationResumeScreen(
                     transactionId = txId,
                     onUploadVoucherClick = { navController.navigate("voucher/$txId") },
-                    onBackClick = { navController.navigate("startOperation") }
+                    onBackClick = { navController.navigate("marketplace") }
                 )
             }
 
@@ -182,41 +196,51 @@ fun AppNavigation() {
 
             composable("history") {
                 HistoryScreen(
-                    onOperationClick = { navController.navigate("operationDetail") },
+                    onOperationClick = { txId -> navController.navigate("operationDetail/$txId") },
                     onBackClick = { navController.navigate("marketplace") }
                 )
             }
 
-            composable("operationDetail") {
+            composable("operationDetail/{transactionId}") { backStackEntry ->
+                val txId = backStackEntry.arguments?.getString("transactionId") ?: ""
                 OperationDetailScreen(
-                    onRateUserClick = { navController.navigate("rating") },
-                    onReportProblemClick = { navController.navigate("dispute") },
+                    transactionId = txId,
+                    onRateUserClick = { uId -> navController.navigate("rating/$txId/$uId") },
+                    onReportProblemClick = { navController.navigate("dispute/$txId") },
                     onBackClick = { navController.navigate("history") }
                 )
             }
 
-            composable("rating") {
+            composable("rating/{transactionId}/{userId}") { backStackEntry ->
+                val txId = backStackEntry.arguments?.getString("transactionId") ?: ""
+                val userId = backStackEntry.arguments?.getString("userId") ?: ""
                 RatingScreen(
-                    onRatingSent = { navController.navigate("operationDetail") },
-                    onBackClick = { navController.navigate("operationDetail") }
+                    transactionId = txId,
+                    targetUserId = userId,
+                    onRatingSent = { navController.popBackStack() },
+                    onBackClick = { navController.popBackStack() }
                 )
             }
 
-            composable("dispute") {
+            composable("dispute/{transactionId}") { backStackEntry ->
+                val txId = backStackEntry.arguments?.getString("transactionId") ?: ""
                 DisputeScreen(
-                    onDisputeSent = { navController.navigate("history") },
-                    onBackClick = { navController.navigate("operationDetail") }
+                    transactionId = txId,
+                    onDisputeSent = { navController.popBackStack() },
+                    onBackClick = { navController.popBackStack() }
                 )
             }
 
             composable("notifications") {
                 NotificationsScreen(
                     onBackClick = { navController.navigate("marketplace") },
-                    onNotificationClick = { ticketId -> 
-                        if (ticketId != null) {
-                            navController.navigate("chatSupport")
-                        } else {
-                            navController.navigate("operationDetail")
+                    onNotificationClick = { type, id ->
+                        if (id != null) {
+                            when (type) {
+                                "TRANSACTION", "DISPUTE" -> navController.navigate("operationDetail/$id")
+                                "SUPPORT_REPLY" -> navController.navigate("chatSupport")
+                                else -> {}
+                            }
                         }
                     }
                 )
@@ -250,7 +274,7 @@ fun AppNavigation() {
                 )
             }
 
-            // New Support Routes
+            // Rutas de Soporte (Mantenidas de master)
             composable("chatSupport") {
                 ChatSupportScreen(
                     onBackClick = { navController.popBackStack() },

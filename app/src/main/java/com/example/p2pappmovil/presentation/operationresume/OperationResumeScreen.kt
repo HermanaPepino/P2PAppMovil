@@ -63,9 +63,10 @@ fun OperationResumeScreen(
                     ResumeItem(label = "Oferente", value = offererName)
                     ResumeItem(label = "Moneda origen", value = sourceCurrency)
                     ResumeItem(label = "Moneda destino", value = destCurrency)
-                    ResumeItem(label = "Monto enviado", value = "$amountSent $sourceCurrency")
-                    ResumeItem(label = "Monto a recibir", value = "$amountReceived $destCurrency")
-                    ResumeItem(label = "Tasa de cambio", value = exchangeRate.toString())
+                    //Aplicar decimales a los montos y tasa
+                    ResumeItem(label = "Monto enviado", value = "${String.format(java.util.Locale.US, "%.2f", amountSent)} $sourceCurrency")
+                    ResumeItem(label = "Monto a recibir", value = "${String.format(java.util.Locale.US, "%.2f", amountReceived)} $destCurrency")
+                    ResumeItem(label = "Tasa de cambio", value = String.format(java.util.Locale.US, "%.4f", exchangeRate))
                     ResumeItem(label = "Estado", value = status, valueColor = Color(0xFFFFA500))
                     ResumeItem(label = "Fecha", value = date)
                 }
