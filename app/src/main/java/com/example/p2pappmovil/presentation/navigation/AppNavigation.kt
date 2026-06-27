@@ -81,7 +81,8 @@ fun AppNavigation() {
             MarketplaceScreen(
                 onFilterClick = { navController.navigate("filters") },
                 onPublishOfferClick = { navController.navigate("publishOffer") },
-                onOfferClick = { navController.navigate("startOperation") },
+                // Cambia esta línea para pasar el ID dinámico:
+                onOfferClick = { id -> navController.navigate("startOperation/$id") },
                 onNotificationsClick = { navController.navigate("notifications") },
                 onHistoryClick = { navController.navigate("history") },
                 onLogoutClick = {
@@ -115,25 +116,31 @@ fun AppNavigation() {
             )
         }
 
-        composable("startOperation") {
+        composable("startOperation/{offerId}") { backStackEntry ->
+            val offerId = backStackEntry.arguments?.getString("offerId") ?: ""
             StartOperationScreen(
-                onConfirmOperation = { navController.navigate("operationResume") },
+                offerId = offerId,
+                onConfirmOperation = { txId -> navController.navigate("operationResume/$txId") },
                 onProfileClick = { navController.navigate("profile") },
                 onBackClick = { navController.navigate("marketplace") }
             )
         }
 
-        composable("operationResume") {
+        composable("operationResume/{transactionId}") { backStackEntry ->
+            val txId = backStackEntry.arguments?.getString("transactionId") ?: ""
             OperationResumeScreen(
-                onUploadVoucherClick = { navController.navigate("voucher") },
+                transactionId = txId,
+                onUploadVoucherClick = { navController.navigate("voucher/$txId") },
                 onBackClick = { navController.navigate("startOperation") }
             )
         }
 
-        composable("voucher") {
+        composable("voucher/{transactionId}") { backStackEntry ->
+            val txId = backStackEntry.arguments?.getString("transactionId") ?: ""
             VoucherScreen(
+                transactionId = txId,
                 onVoucherSent = { navController.navigate("history") },
-                onBackClick = { navController.navigate("operationResume") }
+                onBackClick = { navController.navigate("operationResume/$txId") }
             )
         }
 
@@ -181,9 +188,10 @@ fun AppNavigation() {
 
         composable("admin") {
             AdminScreen(
-                onUserDetailClick = { navController.navigate("adminDetail") },
-                onDisputeDetailClick = { navController.navigate("adminDetail") },
-                onBackClick = { 
+                // Recibimos el txId de la transacción seleccionada y lo pasamos a la ruta
+                onUserDetailClick = { txId -> navController.navigate("adminDetail/$txId") },
+                onDisputeDetailClick = { txId -> navController.navigate("adminDetail/$txId") },
+                onBackClick = {
                     FirebaseAuth.getInstance().signOut()
                     navController.navigate("login") {
                         popUpTo("admin") { inclusive = true }
@@ -192,11 +200,11 @@ fun AppNavigation() {
             )
         }
 
-        composable("adminDetail") {
+        composable("adminDetail/{transactionId}") { backStackEntry ->
+            val txId = backStackEntry.arguments?.getString("transactionId") ?: ""
             AdminDetailScreen(
-                onBackClick = { navController.navigate("admin") },
-                onBlockUserClick = { /* Acción simulada */ },
-                onResolveDisputeClick = { /* Acción simulada */ }
+                transactionId = txId,
+                onBackClick = { navController.navigate("admin") }
             )
         }
     }

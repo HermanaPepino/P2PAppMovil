@@ -1,5 +1,6 @@
 package com.example.p2pappmovil.presentation.marketplace
 
+import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,35 +20,34 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import kotlinx.coroutines.launch
 
 data class Offer(
-    val id: Int,
-    val userName: String,
-    val isVerified: Boolean,
-    val reputation: String,
-    val originCurrency: String,
-    val targetCurrency: String,
-    val exchangeRate: String,
-    val minAmount: String,
-    val maxAmount: String,
-    val paymentMethod: String,
-    val date: String
+    val id: String = "",
+    val userId: String = "", // Añadimos el UID del creador para saber a quién pertenece
+    val userName: String = "",
+    val isVerified: Boolean = false,
+    val reputation: String = "0.0/5 (0 ops)",
+    val isBuying: Boolean = true, // true = Compra, false = Vender
+    val originCurrency: String = "USD",
+    val targetCurrency: String = "PEN",
+    val exchangeRate: Double = 0.0,
+    val minAmount: Double = 0.0,
+    val maxAmount: Double = 0.0,
+    val paymentMethod: String = "",
+    val date: String = ""
 )
 
-val mockOffers = listOf(
-    Offer(1, "Juan Perez", true, "4.8/5 (120 ops)", "USD", "PEN", "3.75", "$100", "$1000", "BCP", "20/10/2023"),
-    Offer(2, "Maria Garcia", true, "4.9/5 (250 ops)", "PEN", "USD", "3.80", "S/ 500", "S/ 5000", "Interbank", "20/10/2023"),
-    Offer(3, "Carlos Lopez", false, "4.5/5 (45 ops)", "USD", "PEN", "3.74", "$50", "$500", "Yape", "21/10/2023"),
-    Offer(4, "Ana Torres", true, "5.0/5 (310 ops)", "PEN", "USD", "3.82", "S/ 1000", "S/ 10000", "BBVA", "21/10/2023")
-)
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MarketplaceScreen(
     onFilterClick: () -> Unit = {},
     onPublishOfferClick: () -> Unit = {},
-    onOfferClick: () -> Unit = {},
+    onOfferClick: (String) -> Unit = {},
     onNotificationsClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onHistoryClick: () -> Unit = {},
@@ -55,6 +55,42 @@ fun MarketplaceScreen(
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+
+    // Estado reactivo que almacenará las ofertas reales de la base de datos
+    val offersList = remember { mutableStateListOf<Offer>() }
+    var isLoading by remember { mutableStateOf(true) }
+
+    // Escuchador en tiempo real de Firestore
+    DisposableEffect (Unit) {
+        val db = FirebaseFirestore.getInstance()
+        // Escuchamos la colección "offers" ordenada por fecha descendente (más recientes primero)
+        val listenerRegistration = db.collection("offers")
+            .orderBy("date", Query.Direction.DESCENDING)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e("MarketplaceScreen", "Error al escuchar ofertas: ${error.message}")
+                    isLoading = false
+                    return@addSnapshotListener
+                }
+
+                if (snapshot != null) {
+                    // Limpiamos la lista local antes de añadir los nuevos cambios
+                    offersList.clear()
+                    for (document in snapshot.documents) {
+                        val offer = document.toObject(Offer::class.java)?.copy(id = document.id)
+                        if (offer != null) {
+                            offersList.add(offer)
+                        }
+                    }
+                    isLoading = false
+                }
+            }
+
+        // Se remueve el escuchador automáticamente cuando la pantalla sale de la composición
+        onDispose {
+            listenerRegistration.remove()
+        }
+    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -123,15 +159,30 @@ fun MarketplaceScreen(
                 }
             }
         ) { paddingValues ->
-            LazyColumn(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                contentAlignment = Alignment.Center
             ) {
-                items(mockOffers) { offer ->
-                    OfferCard(offer = offer, onClick = onOfferClick)
+                if (isLoading) {
+                    CircularProgressIndicator()
+                } else if (offersList.isEmpty()) {
+                    Text(
+                        text = "No hay ofertas disponibles por el momento.",
+                        color = Color.Gray,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(offersList, key = { it.id }) { offer ->
+                            OfferCard(offer = offer, onClick = {onOfferClick(offer.id)})
+                        }
+                    }
                 }
             }
         }
@@ -188,7 +239,7 @@ fun OfferCard(offer: Offer, onClick: () -> Unit) {
                 Column {
                     Text(text = "Cambio", style = MaterialTheme.typography.labelSmall)
                     Text(
-                        text = "${offer.originCurrency} -> ${offer.targetCurrency}",
+                        text = if (offer.isBuying) "Compra: ${offer.originCurrency} -> ${offer.targetCurrency}" else "Venta: ${offer.originCurrency} -> ${offer.targetCurrency}",
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold
                     )
@@ -196,7 +247,7 @@ fun OfferCard(offer: Offer, onClick: () -> Unit) {
                 Column(horizontalAlignment = Alignment.End) {
                     Text(text = "Tasa", style = MaterialTheme.typography.labelSmall)
                     Text(
-                        text = offer.exchangeRate,
+                        text = String.format(java.util.Locale.US, "%.3f", offer.exchangeRate),
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
@@ -213,7 +264,7 @@ fun OfferCard(offer: Offer, onClick: () -> Unit) {
                 Column {
                     Text(text = "Límites", style = MaterialTheme.typography.labelSmall)
                     Text(
-                        text = "${offer.minAmount} - ${offer.maxAmount}",
+                        text = "${offer.originCurrency} ${String.format(java.util.Locale.US, "%.2f", offer.minAmount)} - ${String.format(java.util.Locale.US, "%.2f", offer.maxAmount)}",
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }

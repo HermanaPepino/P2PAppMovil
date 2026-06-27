@@ -19,6 +19,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.p2pappmovil.data.exchange.ExchangeRetrofitClient
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -225,7 +227,7 @@ fun PublishOfferScreen(
                 )
             }
 
-            // Método de pago
+            // Metodo de pago
             Text("Método de pago", fontWeight = FontWeight.SemiBold)
             SimpleDropdownSelector(selected = paymentMethod, options = paymentMethods, placeholder = "Seleccionar método") {
                 paymentMethod = it
@@ -275,8 +277,58 @@ fun PublishOfferScreen(
                         }
                         else -> {
                             errorMessage = null
-                            successMessage = "Oferta publicada correctamente"
-                            onPublishSuccess()
+                            isLoading = true // Activamos la barra de carga interna
+
+                            val auth = FirebaseAuth.getInstance()
+                            val db = FirebaseFirestore.getInstance()
+                            val uid = auth.currentUser?.uid
+
+                            if (uid != null) {
+                                // 1. Primero obtenemos el nombre real del usuario desde la colección "users"
+                                db.collection("users").document(uid).get()
+                                    .addOnSuccessListener { document ->
+                                        val nombres = document.getString("nombres") ?: "Usuario"
+                                        val apellidos = document.getString("apellidos") ?: ""
+                                        val fullName = "$nombres $apellidos".trim()
+                                        val verified = document.getBoolean("isVerified") ?: false
+
+                                        // 2. Armamos el objeto con los datos reales del formulario y de la BD
+                                        val nuevaOferta = hashMapOf(
+                                            "userId" to uid,
+                                            "userName" to fullName,
+                                            "isVerified" to verified,
+                                            "reputation" to "5.0/5 (1 op)", // Valor inicial base
+                                            "isBuying" to isBuying,
+                                            "currencyGive" to currencyGive,
+                                            "currencyReceive" to currencyReceive,
+                                            "exchangeRate" to customRate,
+                                            "minAmount" to (minAmount.toDoubleOrNull() ?: 0.0),
+                                            "maxAmount" to (maxAmount.toDoubleOrNull() ?: 0.0),
+                                            "paymentMethod" to paymentMethod,
+                                            "date" to java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.US).format(java.util.Date())
+                                        )
+
+                                        // 3. Subimos la oferta a la colección "offers"
+                                        db.collection("offers").add(nuevaOferta)
+                                            .addOnSuccessListener {
+                                                isLoading = false
+                                                successMessage = "Oferta publicada correctamente"
+                                                // Regresa automáticamente al Marketplace de forma reactiva
+                                                onPublishSuccess()
+                                            }
+                                            .addOnFailureListener { e ->
+                                                isLoading = false
+                                                errorMessage = "Error al subir la oferta: ${e.message}"
+                                            }
+                                    }
+                                    .addOnFailureListener { e ->
+                                        isLoading = false
+                                        errorMessage = "No se pudo validar tu perfil: ${e.message}"
+                                    }
+                            } else {
+                                isLoading = false
+                                errorMessage = "Sesión expirada. Vuelve a iniciar sesión."
+                            }
                         }
                     }
                 },
