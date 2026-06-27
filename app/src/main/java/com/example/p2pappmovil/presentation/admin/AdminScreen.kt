@@ -1,8 +1,8 @@
 package com.example.p2pappmovil.presentation.admin
 
 // Credenciales de acceso para Admin:
-// Correo: admin@p2p.com
-// Contraseña: admin123
+// Correo: admin@cambioseguro.com
+// Contraseña: 12345678
 
 import android.util.Log
 import androidx.compose.foundation.clickable
@@ -29,6 +29,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 fun AdminScreen(
     onUserDetailClick: (String) -> Unit = {}, // Envía el ID seleccionado
     onDisputeDetailClick: (String) -> Unit = {},
+    onSupportRequestsClick: () -> Unit = {},
     onBackClick: () -> Unit = {}
 ) {
     val pendingOperations = remember { mutableStateListOf<Operation>() }
@@ -72,6 +73,9 @@ fun AdminScreen(
             TopAppBar(
                 title = { Text("Panel de Administración", fontWeight = FontWeight.Bold) },
                 actions = {
+                    TextButton(onClick = onSupportRequestsClick) {
+                        Text("Solicitudes Soporte", fontWeight = FontWeight.Bold)
+                    }
                     IconButton(onClick = onBackClick) {
                         Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Cerrar Sesión Admin")
                     }

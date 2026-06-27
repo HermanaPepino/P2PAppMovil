@@ -8,35 +8,57 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 
 data class Notification(
-    val id: Int,
-    val title: String,
-    val message: String,
-    val date: String,
-    val isRead: Boolean
-)
-
-val mockNotifications = listOf(
-    Notification(1, "Operación Exitosa", "Tu cambio de 100 USD ha sido completado.", "Hace 5 min", false),
-    Notification(2, "Nueva Oferta", "Hay una nueva oferta que coincide con tus filtros.", "Hace 1 hora", true),
-    Notification(3, "Seguridad", "Se ha detectado un inicio de sesión desde un nuevo dispositivo.", "Ayer", true),
-    Notification(4, "Verificación", "Tu cuenta ha sido verificada exitosamente.", "20 Oct", true),
-    Notification(5, "Mensaje Nuevo", "Juan Perez te ha enviado un mensaje sobre tu oferta.", "19 Oct", false)
+    val id: String = "",
+    val title: String = "",
+    val message: String = "",
+    val date: String = "",
+    val isRead: Boolean = false,
+    val type: String = "",
+    val ticketId: String = ""
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotificationsScreen(
     onBackClick: () -> Unit = {},
-    onNotificationClick: () -> Unit = {}
+    onNotificationClick: (String?) -> Unit = {}
 ) {
+    val db = FirebaseFirestore.getInstance()
+    val auth = FirebaseAuth.getInstance()
+    val currentUser = auth.currentUser
+    
+    var notifications by remember { mutableStateOf<List<Notification>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(currentUser) {
+        if (currentUser != null) {
+            db.collection("notifications")
+                .whereEqualTo("userId", currentUser.uid)
+                .orderBy("timestamp", Query.Direction.DESCENDING)
+                .addSnapshotListener { snapshot, _ ->
+                    if (snapshot != null) {
+                        notifications = snapshot.documents.map { doc ->
+                            doc.toObject(Notification::class.java)!!.copy(id = doc.id)
+                        }
+                    }
+                    isLoading = false
+                }
+        } else {
+            isLoading = false
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -49,14 +71,30 @@ fun NotificationsScreen(
             )
         }
     ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            items(mockNotifications) { notification ->
-                NotificationItem(notification = notification, onClick = onNotificationClick)
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp)
+        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            if (isLoading) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            } else if (notifications.isEmpty()) {
+                Text("No tienes notificaciones.", modifier = Modifier.align(Alignment.Center), color = Color.Gray)
+            } else {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(notifications) { notification ->
+                        NotificationItem(
+                            notification = notification, 
+                            onClick = {
+                                // Mark as read
+                                db.collection("notifications").document(notification.id).update("isRead", true)
+                                
+                                if (notification.type == "SUPPORT_REPLY") {
+                                    onNotificationClick(notification.ticketId)
+                                } else {
+                                    onNotificationClick(null)
+                                }
+                            }
+                        )
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp)
+                    }
+                }
             }
         }
     }
