@@ -51,12 +51,30 @@ fun MarketplaceScreen(
     onPublishOfferClick: () -> Unit = {},
     onOfferClick: (String) -> Unit = {},
     onNotificationsClick: () -> Unit = {},
+    onMyOffersClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onHistoryClick: () -> Unit = {},
     onLogoutClick: () -> Unit = {}
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+
+    // Estado para notificaciones sin leer
+    var unreadNotificationsCount by remember { mutableIntStateOf(0) }
+    val miUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+
+    // Escuchador de notificaciones sin leer
+    DisposableEffect(miUid) {
+        if (miUid == null) return@DisposableEffect onDispose {}
+        val db = FirebaseFirestore.getInstance()
+        val listener = db.collection("notifications")
+            .whereEqualTo("userId", miUid)
+            .whereEqualTo("isRead", false)
+            .addSnapshotListener { snapshot, _ ->
+                unreadNotificationsCount = snapshot?.size() ?: 0
+            }
+        onDispose { listener.remove() }
+    }
 
     // Estado reactivo que almacenará las ofertas reales de la base de datos
     val allOffers = remember { mutableStateListOf<Offer>() }
@@ -126,6 +144,18 @@ fun MarketplaceScreen(
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 Spacer(modifier = Modifier.height(8.dp))
                 NavigationDrawerItem(
+                    label = { Text("Mis Publicaciones") },
+                    selected = false,
+                    onClick = {
+                        scope.launch {
+                            drawerState.close()
+                            onMyOffersClick()
+                        }
+                    },
+                    icon = { Icon(Icons.Default.FilterList, contentDescription = null) },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                )
+                NavigationDrawerItem(
                     label = { Text("Historial") },
                     selected = false,
                     onClick = {
@@ -177,8 +207,18 @@ fun MarketplaceScreen(
                                 Icon(Icons.Default.FilterList, contentDescription = "Filtros")
                             }
                         }
-                        IconButton(onClick = onNotificationsClick) {
-                            Icon(Icons.Default.Notifications, contentDescription = "Notificaciones")
+                        BadgedBox(
+                            badge = {
+                                if (unreadNotificationsCount > 0) {
+                                    Badge {
+                                        Text(unreadNotificationsCount.toString())
+                                    }
+                                }
+                            }
+                        ) {
+                            IconButton(onClick = onNotificationsClick) {
+                                Icon(Icons.Default.Notifications, contentDescription = "Notificaciones")
+                            }
                         }
                         IconButton(onClick = {
                             scope.launch {

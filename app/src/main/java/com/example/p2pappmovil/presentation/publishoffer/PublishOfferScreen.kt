@@ -296,7 +296,7 @@ fun PublishOfferScreen(
                                             "paymentMethod" to paymentMethod,
                                             // SOLUCIÓN AL BUG: Se añade la descripción al mapeo de Firestore
                                             "description" to description.trim(),
-                                            "date" to java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.US).format(java.util.Date())
+                                            "date" to java.text.SimpleDateFormat("yyyy/MM/dd HH:mm", java.util.Locale.US).format(java.util.Date())
                                         )
 
                                         db.collection("offers").add(nuevaOferta)

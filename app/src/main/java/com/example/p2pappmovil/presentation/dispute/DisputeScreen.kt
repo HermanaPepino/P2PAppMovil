@@ -189,8 +189,35 @@ fun DisputeScreen(
                                 .addOnSuccessListener {
                                     // Actualizar estado de la transacción
                                     db.collection("transactions").document(transactionId)
-                                        .update("status", "En Disputa")
-                                        .addOnSuccessListener {
+                                        .get()
+                                        .addOnSuccessListener { txDoc ->
+                                            val clientUid = txDoc.getString("clientUid") ?: ""
+                                            val offerId = txDoc.getString("offerId") ?: ""
+                                            
+                                            db.collection("transactions").document(transactionId)
+                                                .update("status", "En Disputa")
+                                            
+                                            // Buscar el dueño de la oferta para notificarlo
+                                            db.collection("offers").document(offerId).get()
+                                                .addOnSuccessListener { offerDoc ->
+                                                    val offererUid = offerDoc.getString("userId") ?: ""
+                                                    val targetUid = if (currentUser?.uid == clientUid) offererUid else clientUid
+                                                    
+                                                    if (targetUid.isNotEmpty()) {
+                                                        val notif = hashMapOf(
+                                                            "userId" to targetUid,
+                                                            "title" to "Disputa Iniciada",
+                                                            "message" to "Se ha abierto una disputa en la operación $operationCode.",
+                                                            "date" to java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.US).format(Date()),
+                                                            "isRead" to false,
+                                                            "type" to "DISPUTE_CREATED",
+                                                            "referenceId" to transactionId,
+                                                            "timestamp" to com.google.firebase.Timestamp.now()
+                                                        )
+                                                        db.collection("notifications").add(notif)
+                                                    }
+                                                }
+
                                             successMessage = "Disputa registrada correctamente"
                                             isSending = false
                                             onDisputeSent()

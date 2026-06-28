@@ -61,6 +61,22 @@ fun SupportTicketDetailScreen(
                     if (ticket?.status != "CLOSED") {
                         TextButton(onClick = { 
                             db.collection("supportTickets").document(ticketId).update("status", "CLOSED")
+                                .addOnSuccessListener {
+                                    ticket?.let { t ->
+                                        val notificationId = db.collection("notifications").document().id
+                                        val notification = mapOf(
+                                            "userId" to t.userId,
+                                            "title" to "Soporte Técnico",
+                                            "message" to "Tu ticket ha sido resuelto y cerrado.",
+                                            "date" to SimpleDateFormat("dd/MM/yy HH:mm", Locale.getDefault()).format(Date()),
+                                            "isRead" to false,
+                                            "type" to "SUPPORT_CLOSED",
+                                            "ticketId" to t.ticketId,
+                                            "timestamp" to Timestamp.now()
+                                        )
+                                        db.collection("notifications").document(notificationId).set(notification)
+                                    }
+                                }
                         }) {
                             Text("Cerrar Ticket", color = Color.Red)
                         }

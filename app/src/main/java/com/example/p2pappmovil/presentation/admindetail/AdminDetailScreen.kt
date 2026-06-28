@@ -69,25 +69,52 @@ fun AdminDetailScreen(
 
     fun updateStatus(newStatus: String) {
         isActionLoading = true
-        db.collection("transactions").document(transactionId)
-            .update("status", newStatus)
-            .addOnSuccessListener {
-                // Si había una disputa, cerrarla también
-                if (status == "En Disputa") {
-                    db.collection("disputes")
-                        .whereEqualTo("transactionId", transactionId)
-                        .get()
-                        .addOnSuccessListener { snap ->
-                            for (d in snap.documents) {
-                                d.reference.update("status", "Resuelta ($newStatus)")
+        db.collection("transactions").document(transactionId).get()
+            .addOnSuccessListener { txDoc ->
+                val clientUid = txDoc.getString("clientUid") ?: ""
+                val offerId = txDoc.getString("offerId") ?: ""
+
+                db.collection("transactions").document(transactionId)
+                    .update("status", newStatus)
+                    .addOnSuccessListener {
+                        // Notificar a las partes
+                        db.collection("offers").document(offerId).get()
+                            .addOnSuccessListener { offerDoc ->
+                                val offererUid = offerDoc.getString("userId") ?: ""
+                                val usersToNotify = listOfNotNull(clientUid.takeIf { it.isNotEmpty() }, offererUid.takeIf { it.isNotEmpty() })
+                                
+                                usersToNotify.forEach { uid ->
+                                    val notif = hashMapOf(
+                                        "userId" to uid,
+                                        "title" to "Operación Actualizada",
+                                        "message" to "La operación $transactionId ha sido marcada como $newStatus por el administrador.",
+                                        "date" to java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.US).format(java.util.Date()),
+                                        "isRead" to false,
+                                        "type" to if (status == "En Disputa") "DISPUTE_RESOLVED" else "SYSTEM",
+                                        "referenceId" to transactionId,
+                                        "timestamp" to com.google.firebase.Timestamp.now()
+                                    )
+                                    db.collection("notifications").add(notif)
+                                }
                             }
+
+                        // Si había una disputa, cerrarla también
+                        if (status == "En Disputa") {
+                            db.collection("disputes")
+                                .whereEqualTo("transactionId", transactionId)
+                                .get()
+                                .addOnSuccessListener { snap ->
+                                    for (d in snap.documents) {
+                                        d.reference.update("status", "Resuelta ($newStatus)")
+                                    }
+                                    isActionLoading = false
+                                    onBackClick()
+                                }
+                        } else {
                             isActionLoading = false
                             onBackClick()
                         }
-                } else {
-                    isActionLoading = false
-                    onBackClick()
-                }
+                    }
             }
     }
 

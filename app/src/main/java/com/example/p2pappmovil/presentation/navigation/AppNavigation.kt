@@ -7,10 +7,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.example.p2pappmovil.presentation.admin.AdminScreen
 import com.example.p2pappmovil.presentation.admindetail.AdminDetailScreen
 import com.example.p2pappmovil.presentation.admin.SupportTicketsScreen
@@ -20,6 +22,7 @@ import com.example.p2pappmovil.presentation.filters.FilterOffersScreen
 import com.example.p2pappmovil.presentation.history.HistoryScreen
 import com.example.p2pappmovil.presentation.login.LoginScreen
 import com.example.p2pappmovil.presentation.marketplace.MarketplaceScreen
+import com.example.p2pappmovil.presentation.marketplace.MyOffersScreen
 import com.example.p2pappmovil.presentation.notifications.NotificationsScreen
 import com.example.p2pappmovil.presentation.operationdetail.OperationDetailScreen
 import com.example.p2pappmovil.presentation.operationresume.OperationResumeScreen
@@ -30,6 +33,7 @@ import com.example.p2pappmovil.presentation.rating.RatingScreen
 import com.example.p2pappmovil.presentation.register.RegisterScreen
 import com.example.p2pappmovil.presentation.splash.SplashWelcomeScreen
 import com.example.p2pappmovil.presentation.startoperation.StartOperationScreen
+import com.example.p2pappmovil.presentation.support.AiSupportScreen
 import com.example.p2pappmovil.presentation.support.ChatSupportScreen
 import com.example.p2pappmovil.presentation.support.SupportTicketHistoryScreen
 import com.example.p2pappmovil.presentation.voucher.VoucherScreen
@@ -114,6 +118,7 @@ fun AppNavigation() {
                     onPublishOfferClick = { navController.navigate("publishOffer") },
                     onOfferClick = { id -> navController.navigate("startOperation/$id") },
                     onNotificationsClick = { navController.navigate("notifications") },
+                    onMyOffersClick = { navController.navigate("myOffers") },
                     onHistoryClick = { navController.navigate("history") },
                     onLogoutClick = {
                         FirebaseAuth.getInstance().signOut()
@@ -121,6 +126,13 @@ fun AppNavigation() {
                             popUpTo("marketplace") { inclusive = true }
                         }
                     }
+                )
+            }
+
+            composable("myOffers") {
+                MyOffersScreen(
+                    onBackClick = { navController.popBackStack() },
+                    onOfferClick = { id -> navController.navigate("startOperation/$id") }
                 )
             }
 
@@ -237,8 +249,10 @@ fun AppNavigation() {
                     onNotificationClick = { type, id ->
                         if (id != null) {
                             when (type) {
-                                "TRANSACTION", "DISPUTE" -> navController.navigate("operationDetail/$id")
-                                "SUPPORT_REPLY" -> navController.navigate("chatSupport")
+                                "TRANSACTION", "DISPUTE", "DISPUTE_CREATED", "DISPUTE_UPDATED", "DISPUTE_RESOLVED" -> 
+                                    navController.navigate("operationDetail/$id")
+                                "SUPPORT_REPLY", "SUPPORT_CLOSED" -> 
+                                    navController.navigate("chatSupport?ticketId=$id")
                                 else -> {}
                             }
                         }
@@ -275,10 +289,32 @@ fun AppNavigation() {
             }
 
             // Rutas de Soporte (Mantenidas de master)
-            composable("chatSupport") {
+            composable(
+                route = "chatSupport?ticketId={ticketId}",
+                arguments = listOf(navArgument("ticketId") { 
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                })
+            ) { backStackEntry ->
+                val tId = backStackEntry.arguments?.getString("ticketId")
                 ChatSupportScreen(
+                    ticketId = tId,
                     onBackClick = { navController.popBackStack() },
-                    onHistoryClick = { navController.navigate("supportHistory") }
+                    onHistoryClick = { navController.navigate("supportHistory") },
+                    onAiSupportClick = { navController.navigate("aiSupport") }
+                )
+            }
+
+            composable("aiSupport") {
+                AiSupportScreen(
+                    onBackClick = { navController.popBackStack() },
+                    onContactSupportClick = {
+                        // Navega al flujo de soporte humano cerrando la IA
+                        navController.navigate("chatSupport") {
+                            popUpTo("aiSupport") { inclusive = true }
+                        }
+                    }
                 )
             }
 

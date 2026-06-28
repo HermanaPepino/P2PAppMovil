@@ -31,8 +31,10 @@ import java.util.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatSupportScreen(
+    ticketId: String? = null, // Parámetro opcional para abrir un ticket específico
     onBackClick: () -> Unit = {},
-    onHistoryClick: () -> Unit = {}
+    onHistoryClick: () -> Unit = {},
+    onAiSupportClick: () -> Unit = {}
 ) {
     val db = FirebaseFirestore.getInstance()
     val auth = FirebaseAuth.getInstance()
@@ -40,7 +42,7 @@ fun ChatSupportScreen(
     
     var activeTicket by remember { mutableStateOf<SupportTicket?>(null) }
     var isLoading by remember { mutableStateOf(true) }
-    var showFaqs by remember { mutableStateOf(true) }
+    var showFaqs by remember { mutableStateOf(ticketId == null) } // Si hay ticketId, no mostramos FAQs
     var currentAnswer by remember { mutableStateOf<String?>(null) }
     var messageText by remember { mutableStateOf("") }
     var isStartingTicket by remember { mutableStateOf(false) }
@@ -54,24 +56,33 @@ fun ChatSupportScreen(
         "¿Cómo cancelar una operación?" to "Las operaciones pueden cancelarse antes de que se suba el comprobante de pago."
     )
 
-    // Listen for active ticket
-    LaunchedEffect(currentUser) {
+    // Listen for tickets
+    LaunchedEffect(currentUser, ticketId) {
         if (currentUser != null) {
-            db.collection("supportTickets")
-                .whereEqualTo("userId", currentUser.uid)
-                .orderBy("updatedAt", Query.Direction.DESCENDING)
-                .addSnapshotListener { snapshot, _ ->
-                    if (snapshot != null && !snapshot.isEmpty) {
-                        val tickets = snapshot.toObjects(SupportTicket::class.java)
-                        // BUSCAR ÚNICAMENTE TICKETS ACTIVOS
-                        activeTicket = tickets.find { it.status != "CLOSED" }
-                        showFaqs = activeTicket == null
-                        isLoading = false
-                    } else {
-                        showFaqs = true
+            if (ticketId != null) {
+                // Si venimos de una notificación con un ticket específico
+                db.collection("supportTickets").document(ticketId)
+                    .addSnapshotListener { snapshot, _ ->
+                        if (snapshot != null && snapshot.exists()) {
+                            activeTicket = snapshot.toObject(SupportTicket::class.java)
+                        }
                         isLoading = false
                     }
-                }
+            } else {
+                // Lógica normal de búsqueda de ticket activo
+                db.collection("supportTickets")
+                    .whereEqualTo("userId", currentUser.uid)
+                    .orderBy("updatedAt", Query.Direction.DESCENDING)
+                    .addSnapshotListener { snapshot, _ ->
+                        if (snapshot != null && !snapshot.isEmpty) {
+                            val tickets = snapshot.toObjects(SupportTicket::class.java)
+                            activeTicket = tickets.find { it.status != "CLOSED" }
+                            // ELIMINADO: showFaqs = activeTicket == null
+                            // Ahora showFaqs se mantiene en true hasta que el usuario decida entrar al chat
+                        }
+                        isLoading = false
+                    }
+            }
         }
     }
 
@@ -119,6 +130,17 @@ fun ChatSupportScreen(
                         Text("Preguntas Frecuentes", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(16.dp))
                     }
+
+                    item {
+                        Button(
+                            onClick = onAiSupportClick,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
+                        ) {
+                            Text("Preguntar a la IA")
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
                     
                     items(faqs) { (q, a) ->
                         OutlinedButton(
@@ -142,11 +164,21 @@ fun ChatSupportScreen(
 
                     item {
                         Spacer(modifier = Modifier.height(24.dp))
+                        if (activeTicket != null && activeTicket?.status != "CLOSED") {
+                            Button(
+                                onClick = { showFaqs = false },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                            ) {
+                                Text("Ir a mi ticket activo")
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
                         Button(
                             onClick = { isStartingTicket = true },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("No encontré mi respuesta")
+                            Text("Realizar una nueva consulta")
                         }
                     }
                 }
