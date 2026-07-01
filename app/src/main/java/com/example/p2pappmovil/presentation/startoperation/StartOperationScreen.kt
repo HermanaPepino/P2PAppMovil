@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import java.util.Date
@@ -180,17 +181,39 @@ fun StartOperationScreen(
 
                                     db.collection("transactions").add(nuevaTransaccion)
                                         .addOnSuccessListener { documentReference ->
+                                            val dateStr = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.US).format(Date())
                                             // CREAR NOTIFICACIÓN PARA EL OFERENTE
                                             val notification = hashMapOf(
                                                 "userId" to offerorUid,
                                                 "title" to "Nueva Operación Iniciada",
                                                 "message" to "El usuario ${FirebaseAuth.getInstance().currentUser?.email?.substringBefore("@")} quiere cambiar ${String.format(java.util.Locale.US, "%.2f", amount)} $sourceCurrency.",
-                                                "date" to java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.US).format(Date()),
+                                                "date" to dateStr,
                                                 "isRead" to false,
                                                 "type" to "TRANSACTION",
-                                                "referenceId" to documentReference.id
+                                                "referenceId" to documentReference.id,
+                                                "timestamp" to Timestamp.now()
                                             )
                                             db.collection("notifications").add(notification)
+
+                                            // Notificar a los administradores
+                                            db.collection("users")
+                                                .whereEqualTo("rol", "ADMIN")
+                                                .get()
+                                                .addOnSuccessListener { adminDocs ->
+                                                    for (adminDoc in adminDocs.documents) {
+                                                        val adminNotif = hashMapOf(
+                                                            "userId" to adminDoc.id,
+                                                            "title" to "Nueva Operación",
+                                                            "message" to "Se ha iniciado una nueva operación de $amount $sourceCurrency",
+                                                            "date" to dateStr,
+                                                            "isRead" to false,
+                                                            "type" to "TRANSACTION",
+                                                            "referenceId" to documentReference.id,
+                                                            "timestamp" to Timestamp.now()
+                                                        )
+                                                        db.collection("notifications").add(adminNotif)
+                                                    }
+                                                }
 
                                             isLoading = false
                                             onConfirmOperation(documentReference.id)

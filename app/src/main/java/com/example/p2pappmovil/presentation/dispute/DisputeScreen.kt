@@ -14,9 +14,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import java.util.Date
+import java.text.SimpleDateFormat
+import java.util.*
 
 @Composable
 fun DisputeScreen(
@@ -29,6 +31,7 @@ fun DisputeScreen(
     var currentStatus by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(true) }
     var isSending by remember { mutableStateOf(false) }
+    var userName by remember { mutableStateOf("") }
 
     var description by remember { mutableStateOf("") }
     var imagesCount by remember { mutableIntStateOf(0) }
@@ -39,6 +42,16 @@ fun DisputeScreen(
     val db = FirebaseFirestore.getInstance()
 
     LaunchedEffect(transactionId) {
+        val currentUser = FirebaseAuth.getInstance().currentUser
+        if (currentUser != null) {
+            db.collection("users").document(currentUser.uid).get()
+                .addOnSuccessListener { userDoc ->
+                    val nombres = userDoc.getString("nombres") ?: ""
+                    val apellidos = userDoc.getString("apellidos") ?: ""
+                    userName = "$nombres $apellidos"
+                }
+        }
+
         db.collection("transactions").document(transactionId).get()
             .addOnSuccessListener { doc ->
                 if (doc.exists()) {
@@ -85,7 +98,7 @@ fun DisputeScreen(
 
             OutlinedTextField(
                 value = description,
-                onValueChange = { 
+                onValueChange = {
                     description = it
                     errorDescription = null
                 },
@@ -104,7 +117,7 @@ fun DisputeScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(text = "Evidencias ($imagesCount/5)", fontWeight = FontWeight.Medium)
-            
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -128,7 +141,7 @@ fun DisputeScreen(
                     Text("Galería", fontSize = 12.sp)
                 }
             }
-            
+
             errorImages?.let {
                 Text(text = it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
@@ -172,25 +185,45 @@ fun DisputeScreen(
                             errorDescription = "Descripción obligatoria"
                             hasError = true
                         }
-                        
+
                         if (!hasError) {
                             isSending = true
                             val currentUser = FirebaseAuth.getInstance().currentUser
-                            
+                            val dateStr = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.US).format(Date())
+
                             val disputeData = hashMapOf(
                                 "transactionId" to transactionId,
                                 "userId" to (currentUser?.uid ?: ""),
+                                "userName" to userName,
                                 "reason" to description,
-                                "date" to java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.US).format(Date()),
-                                "status" to "Abierta"
+                                "date" to dateStr,
+                                "status" to "Abierta",
+                                "timestamp" to Timestamp.now()
                             )
 
                             db.collection("disputes").add(disputeData)
-                                .addOnSuccessListener {
-                                    // Actualizar estado de la transacción
+                                .addOnSuccessListener { disputeRef ->
                                     db.collection("transactions").document(transactionId)
                                         .update("status", "En Disputa")
                                         .addOnSuccessListener {
+                                            db.collection("users")
+                                                .whereEqualTo("rol", "ADMIN")
+                                                .get()
+                                                .addOnSuccessListener { adminDocs ->
+                                                    for (adminDoc in adminDocs.documents) {
+                                                        val notif = hashMapOf(
+                                                            "userId" to adminDoc.id,
+                                                            "title" to "Nueva Disputa",
+                                                            "message" to "El usuario $userName ha abierto una disputa en la transacción ${transactionId.take(8)}",
+                                                            "date" to dateStr,
+                                                            "isRead" to false,
+                                                            "type" to "DISPUTE",
+                                                            "referenceId" to transactionId,
+                                                            "timestamp" to Timestamp.now()
+                                                        )
+                                                        db.collection("notifications").add(notif)
+                                                    }
+                                                }
                                             successMessage = "Disputa registrada correctamente"
                                             isSending = false
                                             onDisputeSent()

@@ -13,6 +13,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.SupportAgent
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,18 +30,19 @@ import com.google.firebase.firestore.FirebaseFirestore
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminScreen(
-    onUserDetailClick: (String) -> Unit = {}, // Envía el ID seleccionado
+    onUserDetailClick: (String) -> Unit = {},
     onDisputeDetailClick: (String) -> Unit = {},
+    onDisputeManagementClick: () -> Unit = {},
     onSupportRequestsClick: () -> Unit = {},
     onBackClick: () -> Unit = {}
 ) {
     val pendingOperations = remember { mutableStateListOf<Operation>() }
     var isLoading by remember { mutableStateOf(true) }
+    var openDisputeCount by remember { mutableIntStateOf(0) }
 
     DisposableEffect(Unit) {
         val db = FirebaseFirestore.getInstance()
 
-        // Escuchamos en tiempo real todas las operaciones que necesitan revisión
         val listenerRegistration = db.collection("transactions")
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
@@ -51,7 +55,6 @@ fun AdminScreen(
                     pendingOperations.clear()
                     for (document in snapshot.documents) {
                         val status = document.getString("status") ?: ""
-                        // Solo filtramos las que están pendientes de revisión por el admin
                         if (status == "Validando Voucher" || status == "En Disputa") {
                             val op = document.toObject(Operation::class.java)?.copy(id = document.id)
                             if (op != null) {
@@ -63,8 +66,15 @@ fun AdminScreen(
                 isLoading = false
             }
 
+        val disputeListener = db.collection("disputes")
+            .whereEqualTo("status", "Abierta")
+            .addSnapshotListener { snapshot, _ ->
+                openDisputeCount = snapshot?.size() ?: 0
+            }
+
         onDispose {
             listenerRegistration.remove()
+            disputeListener.remove()
         }
     }
 
@@ -83,14 +93,60 @@ fun AdminScreen(
             )
         }
     ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "Gestión de Disputas",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onDisputeManagementClick),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFEEBEE))
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Flag, contentDescription = null, tint = Color.Red, modifier = Modifier.size(32.dp))
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Disputas Activas", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(
+                            if (openDisputeCount > 0) "$openDisputeCount disputa(s) pendiente(s)" else "Sin disputas abiertas",
+                            color = if (openDisputeCount > 0) Color.Red else Color.Gray
+                        )
+                    }
+                    Text("Ver >", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            HorizontalDivider()
+
+            Text(
+                text = "Operaciones Pendientes de Revisión",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+
             if (isLoading) {
-                CircularProgressIndicator()
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
             } else if (pendingOperations.isEmpty()) {
                 Text("No hay operaciones pendientes de revisión.", color = Color.Gray)
             } else {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(pendingOperations, key = { it.id }) { op ->

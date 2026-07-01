@@ -5,16 +5,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.p2pappmovil.presentation.admin.AdminDisputeScreen
 import com.example.p2pappmovil.presentation.admin.AdminScreen
-import com.example.p2pappmovil.presentation.admindetail.AdminDetailScreen
-import com.example.p2pappmovil.presentation.admin.SupportTicketsScreen
 import com.example.p2pappmovil.presentation.admin.SupportTicketDetailScreen
+import com.example.p2pappmovil.presentation.admin.SupportTicketsScreen
+import com.example.p2pappmovil.presentation.admindetail.AdminDetailScreen
 import com.example.p2pappmovil.presentation.dispute.DisputeScreen
 import com.example.p2pappmovil.presentation.filters.FilterOffersScreen
 import com.example.p2pappmovil.presentation.history.HistoryScreen
@@ -36,12 +38,30 @@ import com.example.p2pappmovil.presentation.voucher.VoucherScreen
 import com.google.firebase.auth.FirebaseAuth
 
 @Composable
-fun AppNavigation() {
+fun AppNavigation(
+    initialDeepLinkType: String = "",
+    initialDeepLinkReferenceId: String = ""
+) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
     val showFabRoutes = listOf("marketplace")
+
+    LaunchedEffect(initialDeepLinkType) {
+        if (initialDeepLinkType.isNotEmpty()) {
+            when (initialDeepLinkType) {
+                "TRANSACTION", "DISPUTE" -> {
+                    if (initialDeepLinkReferenceId.isNotEmpty()) {
+                        navController.navigate("operationDetail/$initialDeepLinkReferenceId")
+                    }
+                }
+                "SUPPORT_REPLY" -> {
+                    navController.navigate("chatSupport")
+                }
+            }
+        }
+    }
 
     Scaffold(
         floatingActionButton = {
@@ -93,12 +113,12 @@ fun AppNavigation() {
 
             composable("login") {
                 LoginScreen(
-                    onLoginSuccess = { 
+                    onLoginSuccess = {
                         navController.navigate("marketplace") {
                             popUpTo("login") { inclusive = true }
                         }
                     },
-                    onAdminLoginSuccess = { 
+                    onAdminLoginSuccess = {
                         navController.navigate("admin") {
                             popUpTo("login") { inclusive = true }
                         }
@@ -256,6 +276,7 @@ fun AppNavigation() {
                 AdminScreen(
                     onUserDetailClick = { txId -> navController.navigate("adminDetail/$txId") },
                     onDisputeDetailClick = { txId -> navController.navigate("adminDetail/$txId") },
+                    onDisputeManagementClick = { navController.navigate("adminDisputes") },
                     onSupportRequestsClick = { navController.navigate("adminSupportTickets") },
                     onBackClick = {
                         FirebaseAuth.getInstance().signOut()
@@ -274,7 +295,13 @@ fun AppNavigation() {
                 )
             }
 
-            // Rutas de Soporte (Mantenidas de master)
+            composable("adminDisputes") {
+                AdminDisputeScreen(
+                    onBackClick = { navController.navigate("admin") }
+                )
+            }
+
+            // Rutas de Soporte
             composable("chatSupport") {
                 ChatSupportScreen(
                     onBackClick = { navController.popBackStack() },
