@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 
 data class Operation(
     val id: String = "",
@@ -67,6 +68,7 @@ fun HistoryScreen(
         // Por simplicidad inmediata de entrega académica, filtramos por transacciones iniciadas por el cliente.
         val listenerRegistration = db.collection("transactions")
             .whereEqualTo("clientUid", currentUid)
+            .orderBy("date", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     Log.e("HistoryScreen", "Error al traer historial: ${error.message}")
