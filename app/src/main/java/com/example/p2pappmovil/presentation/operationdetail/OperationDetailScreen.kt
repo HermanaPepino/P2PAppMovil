@@ -31,11 +31,13 @@ fun OperationDetailScreen(
     var opPaymentMethod by remember { mutableStateOf("") }
     var opStatus by remember { mutableStateOf("") }
     var opVoucher by remember { mutableStateOf("No disponible") }
+    var counterpartyUserId by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(transactionId) {
         if (transactionId.isNotEmpty()) {
-            FirebaseFirestore.getInstance().collection("transactions").document(transactionId).get()
+            val db = FirebaseFirestore.getInstance()
+            db.collection("transactions").document(transactionId).get()
                 .addOnSuccessListener { doc ->
                     if (doc.exists()) {
                         opCode = doc.id.take(12).uppercase()
@@ -49,6 +51,14 @@ fun OperationDetailScreen(
                         opPaymentMethod = doc.getString("paymentMethod") ?: "No especificado"
                         opStatus = doc.getString("status") ?: ""
                         opVoucher = doc.getString("voucherUrl") ?: "Sin adjuntar"
+
+                        val offerId = doc.getString("offerId")
+                        if (offerId != null) {
+                            db.collection("offers").document(offerId).get()
+                                .addOnSuccessListener { offerDoc ->
+                                    counterpartyUserId = offerDoc.getString("userId") ?: ""
+                                }
+                        }
                     }
                     isLoading = false
                 }
@@ -115,7 +125,7 @@ fun OperationDetailScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     if (opStatus == "Completada") {
                         Button(
-                            onClick = { onRateUserClick(transactionId) },
+                            onClick = { onRateUserClick(counterpartyUserId) },
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("Calificar Usuario")

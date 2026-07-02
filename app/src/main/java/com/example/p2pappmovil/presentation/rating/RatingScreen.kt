@@ -39,6 +39,7 @@ fun RatingScreen(
     var comment by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var successMessage by remember { mutableStateOf<String?>(null) }
+    var isCompletedOperation by remember { mutableStateOf(true) }
     var isLoading by remember { mutableStateOf(true) }
     var isSending by remember { mutableStateOf(false) }
 
@@ -48,13 +49,18 @@ fun RatingScreen(
         db.collection("transactions").document(transactionId).get()
             .addOnSuccessListener { doc ->
                 if (doc.exists()) {
+                    val status = doc.getString("status") ?: ""
+                    isCompletedOperation = status == "Completada"
                     counterpartyName = doc.getString("offererName") ?: "Usuario"
                     operationCode = "TX-${doc.id.take(8).uppercase()}"
                     operationDate = doc.getString("date") ?: ""
+                } else {
+                    isCompletedOperation = false
                 }
                 isLoading = false
             }
             .addOnFailureListener {
+                isCompletedOperation = false
                 isLoading = false
             }
     }
@@ -82,6 +88,19 @@ fun RatingScreen(
         ) {
             if (isLoading) {
                 CircularProgressIndicator()
+            } else if (!isCompletedOperation) {
+                Text(
+                    text = "Solo puedes calificar operaciones completadas.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)
+                )
+                OutlinedButton(onClick = onBackClick, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Volver")
+                }
             } else {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
